@@ -114,21 +114,46 @@ ALTER TABLE mensajes_raw ENABLE ROW LEVEL SECURITY;
 ALTER TABLE alertas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sessions ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "auth_all" ON reservas FOR ALL TO authenticated USING (true) WITH CHECK (true);
-CREATE POLICY "auth_all" ON slots FOR ALL TO authenticated USING (true) WITH CHECK (true);
-CREATE POLICY "auth_all" ON clientes FOR ALL TO authenticated USING (true) WITH CHECK (true);
-CREATE POLICY "auth_all" ON mensajes FOR ALL TO authenticated USING (true) WITH CHECK (true);
-CREATE POLICY "auth_all" ON mensajes_raw FOR ALL TO authenticated USING (true) WITH CHECK (true);
-CREATE POLICY "auth_all" ON alertas FOR ALL TO authenticated USING (true) WITH CHECK (true);
-CREATE POLICY "auth_all" ON sessions FOR ALL TO authenticated USING (true) WITH CHECK (true);
-
--- Also allow anon read for realtime to work
-CREATE POLICY "anon_read" ON reservas FOR SELECT TO anon USING (true);
-CREATE POLICY "anon_read" ON slots FOR SELECT TO anon USING (true);
-CREATE POLICY "anon_read" ON alertas FOR SELECT TO anon USING (true);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='reservas' AND policyname='auth_all') THEN
+    CREATE POLICY "auth_all" ON reservas FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='slots' AND policyname='auth_all') THEN
+    CREATE POLICY "auth_all" ON slots FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='clientes' AND policyname='auth_all') THEN
+    CREATE POLICY "auth_all" ON clientes FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='mensajes' AND policyname='auth_all') THEN
+    CREATE POLICY "auth_all" ON mensajes FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='mensajes_raw' AND policyname='auth_all') THEN
+    CREATE POLICY "auth_all" ON mensajes_raw FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='alertas' AND policyname='auth_all') THEN
+    CREATE POLICY "auth_all" ON alertas FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='sessions' AND policyname='auth_all') THEN
+    CREATE POLICY "auth_all" ON sessions FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='reservas' AND policyname='anon_read') THEN
+    CREATE POLICY "anon_read" ON reservas FOR SELECT TO anon USING (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='slots' AND policyname='anon_read') THEN
+    CREATE POLICY "anon_read" ON slots FOR SELECT TO anon USING (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='alertas' AND policyname='anon_read') THEN
+    CREATE POLICY "anon_read" ON alertas FOR SELECT TO anon USING (true);
+  END IF;
+END $$;
 
 -- =============================================
--- SEED DATA
+-- CLEAR EXISTING DATA (for re-runs)
+-- =============================================
+TRUNCATE sessions, alertas, mensajes, mensajes_raw, slots, reservas, clientes RESTART IDENTITY CASCADE;
+
+-- =============================================
+-- SEED DATA - NEGOCIO EXITOSO
 -- =============================================
 
 -- 8 Clientes (datos ficticios para demo YouTube)
@@ -142,218 +167,312 @@ INSERT INTO clientes (sender_id, nombre, telefono, rut, email, canal) VALUES
   ('56900000007', 'Carlos Ficticio', '+56900000007', '77.777.777-7', 'carlos@ficticio.cl', 'whatsapp'),
   ('56900000008', 'Valentina Mock', '+56900000008', '88.888.888-8', 'valentina@mock.cl', 'whatsapp');
 
--- ~40 Reservas (fechas relativas a CURRENT_DATE)
+-- =============================================
+-- ~90 RESERVAS - Alta ocupacion, pocas cancelaciones
+-- Distribucion: 80% confirmada/completada, 12% pendiente, 5% cancelada, 3% pre_reserva
+-- =============================================
 INSERT INTO reservas (centro, tipo_cancha, cancha, fecha, hora, duracion, estado, canal_origen, nombre_cliente, telefono_cliente, rut_cliente, email_cliente, notas, created_at) VALUES
-  -- Hace 7 dias
-  ('Sede Norte', 'Futbolito', 'Cancha 1', CURRENT_DATE - INTERVAL '7 days', '18:00', 60, 'completada', 'bot', 'Juan Demo', '+56900000001', '11.111.111-1', 'juan@demo.cl', NULL, NOW() - INTERVAL '7 days'),
-  ('Sede Norte', 'Futbolito', 'Cancha 3', CURRENT_DATE - INTERVAL '7 days', '19:00', 60, 'completada', 'easycancha', 'Maria Ejemplo', '+56900000002', '22.222.222-2', 'maria@ejemplo.cl', NULL, NOW() - INTERVAL '7 days'),
-  ('Sede Sur', 'Futbolito', 'Cancha 2', CURRENT_DATE - INTERVAL '7 days', '20:00', 60, 'completada', 'telefono', 'Pedro Prueba', '+56900000003', '33.333.333-3', 'pedro@prueba.cl', 'Torneo empresas', NOW() - INTERVAL '7 days'),
-  -- Hace 6 dias
-  ('Sede Norte', 'Futbolito', 'Cancha 2', CURRENT_DATE - INTERVAL '6 days', '17:00', 60, 'completada', 'bot', 'Ana Muestra', '+56900000004', '44.444.444-4', 'ana@muestra.cl', NULL, NOW() - INTERVAL '6 days'),
-  ('Sede Sur', 'Padel', 'Cancha 1', CURRENT_DATE - INTERVAL '6 days', '18:30', 90, 'completada', 'easycancha', 'Luis Test', '+56900000005', '55.555.555-5', 'luis@test.cl', 'Clase padel', NOW() - INTERVAL '6 days'),
-  ('Sede Norte', 'Futbolito', 'Cancha 5', CURRENT_DATE - INTERVAL '6 days', '21:00', 60, 'cancelada', 'bot', 'Sofia Sample', '+56900000006', '66.666.666-6', 'sofia@sample.cl', NULL, NOW() - INTERVAL '6 days'),
-  -- Hace 5 dias
-  ('Sede Norte', 'Futbolito', 'Cancha 4', CURRENT_DATE - INTERVAL '5 days', '18:00', 60, 'confirmada', 'dashboard', 'Carlos Ficticio', '+56900000007', '77.777.777-7', 'carlos@ficticio.cl', 'Reserva semanal', NOW() - INTERVAL '5 days'),
-  ('Sede Sur', 'Futbolito', 'Cancha 1', CURRENT_DATE - INTERVAL '5 days', '19:00', 60, 'confirmada', 'bot', 'Valentina Mock', '+56900000008', '88.888.888-8', 'valentina@mock.cl', NULL, NOW() - INTERVAL '5 days'),
-  ('Sede Sur', 'Padel', 'Cancha 2', CURRENT_DATE - INTERVAL '5 days', '20:00', 60, 'cancelada', 'easycancha', 'Juan Demo', '+56900000001', '11.111.111-1', 'juan@demo.cl', NULL, NOW() - INTERVAL '5 days'),
-  ('Sede Norte', 'Futbolito', 'Cancha 6', CURRENT_DATE - INTERVAL '5 days', '20:00', 60, 'confirmada', 'telefono', 'Maria Ejemplo', '+56900000002', '22.222.222-2', 'maria@ejemplo.cl', NULL, NOW() - INTERVAL '5 days'),
-  -- Hace 4 dias
-  ('Sede Norte', 'Futbolito', 'Cancha 1', CURRENT_DATE - INTERVAL '4 days', '17:00', 60, 'confirmada', 'bot', 'Pedro Prueba', '+56900000003', '33.333.333-3', 'pedro@prueba.cl', NULL, NOW() - INTERVAL '4 days'),
-  ('Sede Norte', 'Futbolito', 'Cancha 2', CURRENT_DATE - INTERVAL '4 days', '18:00', 60, 'confirmada', 'easycancha', 'Ana Muestra', '+56900000004', '44.444.444-4', 'ana@muestra.cl', NULL, NOW() - INTERVAL '4 days'),
-  ('Sede Sur', 'Futbolito', 'Cancha 3', CURRENT_DATE - INTERVAL '4 days', '19:00', 60, 'confirmada', 'bot', 'Luis Test', '+56900000005', '55.555.555-5', 'luis@test.cl', NULL, NOW() - INTERVAL '4 days'),
-  ('Sede Sur', 'Padel', 'Cancha 3', CURRENT_DATE - INTERVAL '4 days', '17:30', 90, 'confirmada', 'dashboard', 'Sofia Sample', '+56900000006', '66.666.666-6', 'sofia@sample.cl', NULL, NOW() - INTERVAL '4 days'),
-  -- Hace 3 dias
-  ('Sede Norte', 'Futbolito', 'Cancha 3', CURRENT_DATE - INTERVAL '3 days', '18:00', 60, 'confirmada', 'bot', 'Carlos Ficticio', '+56900000007', '77.777.777-7', 'carlos@ficticio.cl', NULL, NOW() - INTERVAL '3 days'),
-  ('Sede Norte', 'Futbolito', 'Cancha 4', CURRENT_DATE - INTERVAL '3 days', '19:00', 60, 'confirmada', 'telefono', 'Valentina Mock', '+56900000008', '88.888.888-8', 'valentina@mock.cl', 'Cumpleanos', NOW() - INTERVAL '3 days'),
-  ('Sede Sur', 'Futbolito', 'Cancha 1', CURRENT_DATE - INTERVAL '3 days', '20:00', 60, 'cancelada', 'bot', 'Juan Demo', '+56900000001', '11.111.111-1', 'juan@demo.cl', NULL, NOW() - INTERVAL '3 days'),
-  ('Sede Sur', 'Padel', 'Cancha 1', CURRENT_DATE - INTERVAL '3 days', '19:00', 60, 'confirmada', 'easycancha', 'Maria Ejemplo', '+56900000002', '22.222.222-2', 'maria@ejemplo.cl', NULL, NOW() - INTERVAL '3 days'),
-  -- Hace 2 dias
-  ('Sede Norte', 'Futbolito', 'Cancha 5', CURRENT_DATE - INTERVAL '2 days', '17:00', 60, 'confirmada', 'bot', 'Pedro Prueba', '+56900000003', '33.333.333-3', 'pedro@prueba.cl', NULL, NOW() - INTERVAL '2 days'),
-  ('Sede Norte', 'Futbolito', 'Cancha 6', CURRENT_DATE - INTERVAL '2 days', '18:00', 60, 'confirmada', 'easycancha', 'Ana Muestra', '+56900000004', '44.444.444-4', 'ana@muestra.cl', NULL, NOW() - INTERVAL '2 days'),
-  ('Sede Sur', 'Futbolito', 'Cancha 2', CURRENT_DATE - INTERVAL '2 days', '21:00', 60, 'pendiente', 'bot', 'Luis Test', '+56900000005', '55.555.555-5', 'luis@test.cl', NULL, NOW() - INTERVAL '2 days'),
-  ('Sede Sur', 'Padel', 'Cancha 2', CURRENT_DATE - INTERVAL '2 days', '18:00', 90, 'confirmada', 'bot', 'Sofia Sample', '+56900000006', '66.666.666-6', 'sofia@sample.cl', NULL, NOW() - INTERVAL '2 days'),
-  -- Ayer
-  ('Sede Norte', 'Futbolito', 'Cancha 1', CURRENT_DATE - INTERVAL '1 day', '18:00', 60, 'confirmada', 'bot', 'Carlos Ficticio', '+56900000007', '77.777.777-7', 'carlos@ficticio.cl', NULL, NOW() - INTERVAL '1 day'),
-  ('Sede Norte', 'Futbolito', 'Cancha 2', CURRENT_DATE - INTERVAL '1 day', '19:00', 60, 'confirmada', 'easycancha', 'Valentina Mock', '+56900000008', '88.888.888-8', 'valentina@mock.cl', NULL, NOW() - INTERVAL '1 day'),
-  ('Sede Norte', 'Futbolito', 'Cancha 3', CURRENT_DATE - INTERVAL '1 day', '20:00', 60, 'cancelada', 'telefono', 'Juan Demo', '+56900000001', '11.111.111-1', 'juan@demo.cl', NULL, NOW() - INTERVAL '1 day'),
-  ('Sede Sur', 'Futbolito', 'Cancha 1', CURRENT_DATE - INTERVAL '1 day', '17:00', 60, 'confirmada', 'bot', 'Maria Ejemplo', '+56900000002', '22.222.222-2', 'maria@ejemplo.cl', NULL, NOW() - INTERVAL '1 day'),
-  ('Sede Sur', 'Padel', 'Cancha 3', CURRENT_DATE - INTERVAL '1 day', '19:30', 60, 'pendiente', 'bot', 'Pedro Prueba', '+56900000003', '33.333.333-3', 'pedro@prueba.cl', NULL, NOW() - INTERVAL '1 day'),
-  -- Hoy
-  ('Sede Norte', 'Futbolito', 'Cancha 1', CURRENT_DATE, '18:00', 60, 'confirmada', 'bot', 'Ana Muestra', '+56900000004', '44.444.444-4', 'ana@muestra.cl', NULL, NOW() - INTERVAL '2 hours'),
-  ('Sede Norte', 'Futbolito', 'Cancha 2', CURRENT_DATE, '19:00', 60, 'confirmada', 'easycancha', 'Luis Test', '+56900000005', '55.555.555-5', 'luis@test.cl', NULL, NOW() - INTERVAL '3 hours'),
-  ('Sede Norte', 'Futbolito', 'Cancha 4', CURRENT_DATE, '20:00', 60, 'pendiente', 'bot', 'Sofia Sample', '+56900000006', '66.666.666-6', 'sofia@sample.cl', NULL, NOW() - INTERVAL '1 hour'),
-  ('Sede Norte', 'Futbolito', 'Cancha 5', CURRENT_DATE, '21:00', 60, 'pre_reserva', 'bot', 'Carlos Ficticio', '+56900000007', '77.777.777-7', 'carlos@ficticio.cl', NULL, NOW() - INTERVAL '30 minutes'),
-  ('Sede Sur', 'Futbolito', 'Cancha 1', CURRENT_DATE, '18:00', 60, 'confirmada', 'bot', 'Valentina Mock', '+56900000008', '88.888.888-8', 'valentina@mock.cl', NULL, NOW() - INTERVAL '4 hours'),
-  ('Sede Sur', 'Futbolito', 'Cancha 2', CURRENT_DATE, '19:00', 60, 'confirmada', 'telefono', 'Juan Demo', '+56900000001', '11.111.111-1', 'juan@demo.cl', 'Reserva semanal', NOW() - INTERVAL '5 hours'),
-  ('Sede Sur', 'Padel', 'Cancha 1', CURRENT_DATE, '18:30', 90, 'confirmada', 'easycancha', 'Maria Ejemplo', '+56900000002', '22.222.222-2', 'maria@ejemplo.cl', NULL, NOW() - INTERVAL '6 hours'),
-  ('Sede Sur', 'Padel', 'Cancha 2', CURRENT_DATE, '20:00', 60, 'pendiente', 'bot', 'Pedro Prueba', '+56900000003', '33.333.333-3', 'pedro@prueba.cl', NULL, NOW() - INTERVAL '1 hour'),
-  -- Manana
-  ('Sede Norte', 'Futbolito', 'Cancha 1', CURRENT_DATE + INTERVAL '1 day', '18:00', 60, 'confirmada', 'bot', 'Ana Muestra', '+56900000004', '44.444.444-4', 'ana@muestra.cl', NULL, NOW() - INTERVAL '1 hour'),
-  ('Sede Norte', 'Futbolito', 'Cancha 3', CURRENT_DATE + INTERVAL '1 day', '19:00', 60, 'pendiente', 'easycancha', 'Luis Test', '+56900000005', '55.555.555-5', 'luis@test.cl', NULL, NOW()),
-  ('Sede Norte', 'Futbolito', 'Cancha 6', CURRENT_DATE + INTERVAL '1 day', '20:00', 60, 'pre_reserva', 'bot', 'Sofia Sample', '+56900000006', '66.666.666-6', 'sofia@sample.cl', NULL, NOW()),
-  ('Sede Sur', 'Futbolito', 'Cancha 1', CURRENT_DATE + INTERVAL '1 day', '19:00', 60, 'confirmada', 'bot', 'Carlos Ficticio', '+56900000007', '77.777.777-7', 'carlos@ficticio.cl', NULL, NOW()),
-  ('Sede Sur', 'Padel', 'Cancha 1', CURRENT_DATE + INTERVAL '1 day', '19:00', 60, 'confirmada', 'dashboard', 'Valentina Mock', '+56900000008', '88.888.888-8', 'valentina@mock.cl', 'Clase padel', NOW()),
-  -- Pasado manana y despues
-  ('Sede Norte', 'Futbolito', 'Cancha 2', CURRENT_DATE + INTERVAL '2 days', '18:00', 60, 'pendiente', 'bot', 'Juan Demo', '+56900000001', '11.111.111-1', 'juan@demo.cl', NULL, NOW()),
-  ('Sede Sur', 'Futbolito', 'Cancha 3', CURRENT_DATE + INTERVAL '2 days', '20:00', 60, 'confirmada', 'easycancha', 'Maria Ejemplo', '+56900000002', '22.222.222-2', 'maria@ejemplo.cl', NULL, NOW()),
-  ('Sede Sur', 'Padel', 'Cancha 2', CURRENT_DATE + INTERVAL '3 days', '18:00', 90, 'pendiente', 'bot', 'Pedro Prueba', '+56900000003', '33.333.333-3', 'pedro@prueba.cl', NULL, NOW());
+  -- ============ HACE 7 DIAS (dia fuerte) ============
+  ('Sede Norte', 'Futbolito', 'Cancha 1', CURRENT_DATE - 7, '17:00', 60, 'completada', 'bot', 'Juan Demo', '+56900000001', '11.111.111-1', 'juan@demo.cl', NULL, NOW() - INTERVAL '7 days'),
+  ('Sede Norte', 'Futbolito', 'Cancha 1', CURRENT_DATE - 7, '18:00', 60, 'completada', 'bot', 'Maria Ejemplo', '+56900000002', '22.222.222-2', 'maria@ejemplo.cl', NULL, NOW() - INTERVAL '7 days'),
+  ('Sede Norte', 'Futbolito', 'Cancha 2', CURRENT_DATE - 7, '18:00', 60, 'completada', 'easycancha', 'Pedro Prueba', '+56900000003', '33.333.333-3', 'pedro@prueba.cl', NULL, NOW() - INTERVAL '7 days'),
+  ('Sede Norte', 'Futbolito', 'Cancha 3', CURRENT_DATE - 7, '19:00', 60, 'completada', 'bot', 'Ana Muestra', '+56900000004', '44.444.444-4', 'ana@muestra.cl', NULL, NOW() - INTERVAL '7 days'),
+  ('Sede Norte', 'Futbolito', 'Cancha 4', CURRENT_DATE - 7, '19:00', 60, 'completada', 'easycancha', 'Luis Test', '+56900000005', '55.555.555-5', 'luis@test.cl', NULL, NOW() - INTERVAL '7 days'),
+  ('Sede Norte', 'Futbolito', 'Cancha 5', CURRENT_DATE - 7, '20:00', 60, 'completada', 'bot', 'Sofia Sample', '+56900000006', '66.666.666-6', 'sofia@sample.cl', NULL, NOW() - INTERVAL '7 days'),
+  ('Sede Norte', 'Futbolito', 'Cancha 6', CURRENT_DATE - 7, '20:00', 60, 'completada', 'telefono', 'Carlos Ficticio', '+56900000007', '77.777.777-7', 'carlos@ficticio.cl', NULL, NOW() - INTERVAL '7 days'),
+  ('Sede Norte', 'Futbolito', 'Cancha 2', CURRENT_DATE - 7, '21:00', 60, 'completada', 'bot', 'Valentina Mock', '+56900000008', '88.888.888-8', 'valentina@mock.cl', 'Torneo empresas', NOW() - INTERVAL '7 days'),
+  ('Sede Sur', 'Futbolito', 'Cancha 1', CURRENT_DATE - 7, '18:00', 60, 'completada', 'bot', 'Juan Demo', '+56900000001', '11.111.111-1', 'juan@demo.cl', NULL, NOW() - INTERVAL '7 days'),
+  ('Sede Sur', 'Futbolito', 'Cancha 2', CURRENT_DATE - 7, '19:00', 60, 'completada', 'easycancha', 'Maria Ejemplo', '+56900000002', '22.222.222-2', 'maria@ejemplo.cl', NULL, NOW() - INTERVAL '7 days'),
+  ('Sede Sur', 'Futbolito', 'Cancha 3', CURRENT_DATE - 7, '20:00', 60, 'completada', 'bot', 'Pedro Prueba', '+56900000003', '33.333.333-3', 'pedro@prueba.cl', NULL, NOW() - INTERVAL '7 days'),
+  ('Sede Sur', 'Padel', 'Cancha 1', CURRENT_DATE - 7, '18:30', 90, 'completada', 'easycancha', 'Ana Muestra', '+56900000004', '44.444.444-4', 'ana@muestra.cl', 'Clase padel', NOW() - INTERVAL '7 days'),
+  ('Sede Sur', 'Padel', 'Cancha 2', CURRENT_DATE - 7, '19:00', 60, 'completada', 'bot', 'Luis Test', '+56900000005', '55.555.555-5', 'luis@test.cl', NULL, NOW() - INTERVAL '7 days'),
+
+  -- ============ HACE 6 DIAS ============
+  ('Sede Norte', 'Futbolito', 'Cancha 1', CURRENT_DATE - 6, '17:00', 60, 'completada', 'bot', 'Sofia Sample', '+56900000006', '66.666.666-6', 'sofia@sample.cl', NULL, NOW() - INTERVAL '6 days'),
+  ('Sede Norte', 'Futbolito', 'Cancha 2', CURRENT_DATE - 6, '18:00', 60, 'completada', 'easycancha', 'Carlos Ficticio', '+56900000007', '77.777.777-7', 'carlos@ficticio.cl', NULL, NOW() - INTERVAL '6 days'),
+  ('Sede Norte', 'Futbolito', 'Cancha 3', CURRENT_DATE - 6, '18:00', 60, 'completada', 'bot', 'Valentina Mock', '+56900000008', '88.888.888-8', 'valentina@mock.cl', NULL, NOW() - INTERVAL '6 days'),
+  ('Sede Norte', 'Futbolito', 'Cancha 4', CURRENT_DATE - 6, '19:00', 60, 'completada', 'bot', 'Juan Demo', '+56900000001', '11.111.111-1', 'juan@demo.cl', 'Reserva semanal', NOW() - INTERVAL '6 days'),
+  ('Sede Norte', 'Futbolito', 'Cancha 5', CURRENT_DATE - 6, '20:00', 60, 'completada', 'telefono', 'Maria Ejemplo', '+56900000002', '22.222.222-2', 'maria@ejemplo.cl', NULL, NOW() - INTERVAL '6 days'),
+  ('Sede Norte', 'Futbolito', 'Cancha 1', CURRENT_DATE - 6, '21:00', 60, 'cancelada', 'bot', 'Pedro Prueba', '+56900000003', '33.333.333-3', 'pedro@prueba.cl', NULL, NOW() - INTERVAL '6 days'),
+  ('Sede Sur', 'Futbolito', 'Cancha 1', CURRENT_DATE - 6, '18:00', 60, 'completada', 'bot', 'Ana Muestra', '+56900000004', '44.444.444-4', 'ana@muestra.cl', NULL, NOW() - INTERVAL '6 days'),
+  ('Sede Sur', 'Futbolito', 'Cancha 2', CURRENT_DATE - 6, '19:00', 60, 'completada', 'easycancha', 'Luis Test', '+56900000005', '55.555.555-5', 'luis@test.cl', NULL, NOW() - INTERVAL '6 days'),
+  ('Sede Sur', 'Futbolito', 'Cancha 3', CURRENT_DATE - 6, '20:00', 60, 'completada', 'bot', 'Sofia Sample', '+56900000006', '66.666.666-6', 'sofia@sample.cl', NULL, NOW() - INTERVAL '6 days'),
+  ('Sede Sur', 'Padel', 'Cancha 1', CURRENT_DATE - 6, '19:00', 60, 'completada', 'bot', 'Carlos Ficticio', '+56900000007', '77.777.777-7', 'carlos@ficticio.cl', NULL, NOW() - INTERVAL '6 days'),
+  ('Sede Sur', 'Padel', 'Cancha 2', CURRENT_DATE - 6, '20:00', 90, 'completada', 'easycancha', 'Valentina Mock', '+56900000008', '88.888.888-8', 'valentina@mock.cl', NULL, NOW() - INTERVAL '6 days'),
+
+  -- ============ HACE 5 DIAS ============
+  ('Sede Norte', 'Futbolito', 'Cancha 1', CURRENT_DATE - 5, '18:00', 60, 'completada', 'bot', 'Juan Demo', '+56900000001', '11.111.111-1', 'juan@demo.cl', NULL, NOW() - INTERVAL '5 days'),
+  ('Sede Norte', 'Futbolito', 'Cancha 2', CURRENT_DATE - 5, '18:00', 60, 'completada', 'easycancha', 'Maria Ejemplo', '+56900000002', '22.222.222-2', 'maria@ejemplo.cl', NULL, NOW() - INTERVAL '5 days'),
+  ('Sede Norte', 'Futbolito', 'Cancha 3', CURRENT_DATE - 5, '19:00', 60, 'completada', 'bot', 'Pedro Prueba', '+56900000003', '33.333.333-3', 'pedro@prueba.cl', NULL, NOW() - INTERVAL '5 days'),
+  ('Sede Norte', 'Futbolito', 'Cancha 4', CURRENT_DATE - 5, '19:00', 60, 'completada', 'dashboard', 'Ana Muestra', '+56900000004', '44.444.444-4', 'ana@muestra.cl', 'Cumpleanos', NOW() - INTERVAL '5 days'),
+  ('Sede Norte', 'Futbolito', 'Cancha 5', CURRENT_DATE - 5, '20:00', 60, 'completada', 'bot', 'Luis Test', '+56900000005', '55.555.555-5', 'luis@test.cl', NULL, NOW() - INTERVAL '5 days'),
+  ('Sede Norte', 'Futbolito', 'Cancha 6', CURRENT_DATE - 5, '21:00', 60, 'completada', 'bot', 'Sofia Sample', '+56900000006', '66.666.666-6', 'sofia@sample.cl', NULL, NOW() - INTERVAL '5 days'),
+  ('Sede Sur', 'Futbolito', 'Cancha 1', CURRENT_DATE - 5, '17:00', 60, 'completada', 'bot', 'Carlos Ficticio', '+56900000007', '77.777.777-7', 'carlos@ficticio.cl', NULL, NOW() - INTERVAL '5 days'),
+  ('Sede Sur', 'Futbolito', 'Cancha 2', CURRENT_DATE - 5, '18:00', 60, 'completada', 'easycancha', 'Valentina Mock', '+56900000008', '88.888.888-8', 'valentina@mock.cl', NULL, NOW() - INTERVAL '5 days'),
+  ('Sede Sur', 'Futbolito', 'Cancha 3', CURRENT_DATE - 5, '19:00', 60, 'completada', 'bot', 'Juan Demo', '+56900000001', '11.111.111-1', 'juan@demo.cl', NULL, NOW() - INTERVAL '5 days'),
+  ('Sede Sur', 'Padel', 'Cancha 1', CURRENT_DATE - 5, '18:00', 90, 'completada', 'easycancha', 'Maria Ejemplo', '+56900000002', '22.222.222-2', 'maria@ejemplo.cl', NULL, NOW() - INTERVAL '5 days'),
+  ('Sede Sur', 'Padel', 'Cancha 2', CURRENT_DATE - 5, '19:30', 60, 'completada', 'bot', 'Pedro Prueba', '+56900000003', '33.333.333-3', 'pedro@prueba.cl', NULL, NOW() - INTERVAL '5 days'),
+  ('Sede Sur', 'Padel', 'Cancha 3', CURRENT_DATE - 5, '20:00', 60, 'completada', 'bot', 'Ana Muestra', '+56900000004', '44.444.444-4', 'ana@muestra.cl', NULL, NOW() - INTERVAL '5 days'),
+
+  -- ============ HACE 4 DIAS ============
+  ('Sede Norte', 'Futbolito', 'Cancha 1', CURRENT_DATE - 4, '17:00', 60, 'completada', 'bot', 'Luis Test', '+56900000005', '55.555.555-5', 'luis@test.cl', NULL, NOW() - INTERVAL '4 days'),
+  ('Sede Norte', 'Futbolito', 'Cancha 2', CURRENT_DATE - 4, '18:00', 60, 'completada', 'bot', 'Sofia Sample', '+56900000006', '66.666.666-6', 'sofia@sample.cl', NULL, NOW() - INTERVAL '4 days'),
+  ('Sede Norte', 'Futbolito', 'Cancha 3', CURRENT_DATE - 4, '19:00', 60, 'completada', 'easycancha', 'Carlos Ficticio', '+56900000007', '77.777.777-7', 'carlos@ficticio.cl', NULL, NOW() - INTERVAL '4 days'),
+  ('Sede Norte', 'Futbolito', 'Cancha 4', CURRENT_DATE - 4, '20:00', 60, 'completada', 'bot', 'Valentina Mock', '+56900000008', '88.888.888-8', 'valentina@mock.cl', NULL, NOW() - INTERVAL '4 days'),
+  ('Sede Norte', 'Futbolito', 'Cancha 5', CURRENT_DATE - 4, '20:00', 60, 'completada', 'telefono', 'Juan Demo', '+56900000001', '11.111.111-1', 'juan@demo.cl', 'Liga nocturna', NOW() - INTERVAL '4 days'),
+  ('Sede Norte', 'Futbolito', 'Cancha 6', CURRENT_DATE - 4, '21:00', 60, 'completada', 'bot', 'Maria Ejemplo', '+56900000002', '22.222.222-2', 'maria@ejemplo.cl', NULL, NOW() - INTERVAL '4 days'),
+  ('Sede Sur', 'Futbolito', 'Cancha 1', CURRENT_DATE - 4, '18:00', 60, 'completada', 'bot', 'Pedro Prueba', '+56900000003', '33.333.333-3', 'pedro@prueba.cl', NULL, NOW() - INTERVAL '4 days'),
+  ('Sede Sur', 'Futbolito', 'Cancha 2', CURRENT_DATE - 4, '19:00', 60, 'completada', 'easycancha', 'Ana Muestra', '+56900000004', '44.444.444-4', 'ana@muestra.cl', NULL, NOW() - INTERVAL '4 days'),
+  ('Sede Sur', 'Futbolito', 'Cancha 3', CURRENT_DATE - 4, '20:00', 60, 'cancelada', 'bot', 'Luis Test', '+56900000005', '55.555.555-5', 'luis@test.cl', NULL, NOW() - INTERVAL '4 days'),
+  ('Sede Sur', 'Padel', 'Cancha 1', CURRENT_DATE - 4, '18:30', 90, 'completada', 'easycancha', 'Sofia Sample', '+56900000006', '66.666.666-6', 'sofia@sample.cl', 'Clase grupal', NOW() - INTERVAL '4 days'),
+  ('Sede Sur', 'Padel', 'Cancha 2', CURRENT_DATE - 4, '19:00', 60, 'completada', 'bot', 'Carlos Ficticio', '+56900000007', '77.777.777-7', 'carlos@ficticio.cl', NULL, NOW() - INTERVAL '4 days'),
+
+  -- ============ HACE 3 DIAS ============
+  ('Sede Norte', 'Futbolito', 'Cancha 1', CURRENT_DATE - 3, '17:00', 60, 'completada', 'bot', 'Valentina Mock', '+56900000008', '88.888.888-8', 'valentina@mock.cl', NULL, NOW() - INTERVAL '3 days'),
+  ('Sede Norte', 'Futbolito', 'Cancha 2', CURRENT_DATE - 3, '18:00', 60, 'completada', 'easycancha', 'Juan Demo', '+56900000001', '11.111.111-1', 'juan@demo.cl', NULL, NOW() - INTERVAL '3 days'),
+  ('Sede Norte', 'Futbolito', 'Cancha 3', CURRENT_DATE - 3, '18:00', 60, 'completada', 'bot', 'Maria Ejemplo', '+56900000002', '22.222.222-2', 'maria@ejemplo.cl', NULL, NOW() - INTERVAL '3 days'),
+  ('Sede Norte', 'Futbolito', 'Cancha 4', CURRENT_DATE - 3, '19:00', 60, 'completada', 'bot', 'Pedro Prueba', '+56900000003', '33.333.333-3', 'pedro@prueba.cl', NULL, NOW() - INTERVAL '3 days'),
+  ('Sede Norte', 'Futbolito', 'Cancha 5', CURRENT_DATE - 3, '20:00', 60, 'completada', 'telefono', 'Ana Muestra', '+56900000004', '44.444.444-4', 'ana@muestra.cl', 'Torneo empresas', NOW() - INTERVAL '3 days'),
+  ('Sede Norte', 'Futbolito', 'Cancha 6', CURRENT_DATE - 3, '21:00', 60, 'completada', 'bot', 'Luis Test', '+56900000005', '55.555.555-5', 'luis@test.cl', NULL, NOW() - INTERVAL '3 days'),
+  ('Sede Sur', 'Futbolito', 'Cancha 1', CURRENT_DATE - 3, '17:00', 60, 'completada', 'bot', 'Sofia Sample', '+56900000006', '66.666.666-6', 'sofia@sample.cl', NULL, NOW() - INTERVAL '3 days'),
+  ('Sede Sur', 'Futbolito', 'Cancha 2', CURRENT_DATE - 3, '18:00', 60, 'completada', 'easycancha', 'Carlos Ficticio', '+56900000007', '77.777.777-7', 'carlos@ficticio.cl', NULL, NOW() - INTERVAL '3 days'),
+  ('Sede Sur', 'Futbolito', 'Cancha 3', CURRENT_DATE - 3, '19:00', 60, 'completada', 'bot', 'Valentina Mock', '+56900000008', '88.888.888-8', 'valentina@mock.cl', NULL, NOW() - INTERVAL '3 days'),
+  ('Sede Sur', 'Futbolito', 'Cancha 4', CURRENT_DATE - 3, '20:00', 60, 'completada', 'bot', 'Juan Demo', '+56900000001', '11.111.111-1', 'juan@demo.cl', NULL, NOW() - INTERVAL '3 days'),
+  ('Sede Sur', 'Padel', 'Cancha 1', CURRENT_DATE - 3, '18:00', 60, 'completada', 'bot', 'Maria Ejemplo', '+56900000002', '22.222.222-2', 'maria@ejemplo.cl', NULL, NOW() - INTERVAL '3 days'),
+  ('Sede Sur', 'Padel', 'Cancha 2', CURRENT_DATE - 3, '19:30', 90, 'completada', 'easycancha', 'Pedro Prueba', '+56900000003', '33.333.333-3', 'pedro@prueba.cl', NULL, NOW() - INTERVAL '3 days'),
+  ('Sede Sur', 'Padel', 'Cancha 3', CURRENT_DATE - 3, '20:00', 60, 'completada', 'bot', 'Ana Muestra', '+56900000004', '44.444.444-4', 'ana@muestra.cl', NULL, NOW() - INTERVAL '3 days'),
+
+  -- ============ HACE 2 DIAS ============
+  ('Sede Norte', 'Futbolito', 'Cancha 1', CURRENT_DATE - 2, '17:00', 60, 'completada', 'bot', 'Luis Test', '+56900000005', '55.555.555-5', 'luis@test.cl', NULL, NOW() - INTERVAL '2 days'),
+  ('Sede Norte', 'Futbolito', 'Cancha 2', CURRENT_DATE - 2, '18:00', 60, 'completada', 'easycancha', 'Sofia Sample', '+56900000006', '66.666.666-6', 'sofia@sample.cl', NULL, NOW() - INTERVAL '2 days'),
+  ('Sede Norte', 'Futbolito', 'Cancha 3', CURRENT_DATE - 2, '19:00', 60, 'completada', 'bot', 'Carlos Ficticio', '+56900000007', '77.777.777-7', 'carlos@ficticio.cl', NULL, NOW() - INTERVAL '2 days'),
+  ('Sede Norte', 'Futbolito', 'Cancha 4', CURRENT_DATE - 2, '19:00', 60, 'completada', 'bot', 'Valentina Mock', '+56900000008', '88.888.888-8', 'valentina@mock.cl', NULL, NOW() - INTERVAL '2 days'),
+  ('Sede Norte', 'Futbolito', 'Cancha 5', CURRENT_DATE - 2, '20:00', 60, 'completada', 'telefono', 'Juan Demo', '+56900000001', '11.111.111-1', 'juan@demo.cl', NULL, NOW() - INTERVAL '2 days'),
+  ('Sede Norte', 'Futbolito', 'Cancha 6', CURRENT_DATE - 2, '21:00', 60, 'completada', 'bot', 'Maria Ejemplo', '+56900000002', '22.222.222-2', 'maria@ejemplo.cl', NULL, NOW() - INTERVAL '2 days'),
+  ('Sede Sur', 'Futbolito', 'Cancha 1', CURRENT_DATE - 2, '18:00', 60, 'completada', 'bot', 'Pedro Prueba', '+56900000003', '33.333.333-3', 'pedro@prueba.cl', NULL, NOW() - INTERVAL '2 days'),
+  ('Sede Sur', 'Futbolito', 'Cancha 2', CURRENT_DATE - 2, '19:00', 60, 'completada', 'easycancha', 'Ana Muestra', '+56900000004', '44.444.444-4', 'ana@muestra.cl', NULL, NOW() - INTERVAL '2 days'),
+  ('Sede Sur', 'Futbolito', 'Cancha 3', CURRENT_DATE - 2, '20:00', 60, 'completada', 'bot', 'Luis Test', '+56900000005', '55.555.555-5', 'luis@test.cl', NULL, NOW() - INTERVAL '2 days'),
+  ('Sede Sur', 'Padel', 'Cancha 1', CURRENT_DATE - 2, '18:30', 90, 'completada', 'bot', 'Sofia Sample', '+56900000006', '66.666.666-6', 'sofia@sample.cl', NULL, NOW() - INTERVAL '2 days'),
+  ('Sede Sur', 'Padel', 'Cancha 2', CURRENT_DATE - 2, '19:00', 60, 'completada', 'easycancha', 'Carlos Ficticio', '+56900000007', '77.777.777-7', 'carlos@ficticio.cl', NULL, NOW() - INTERVAL '2 days'),
+
+  -- ============ AYER ============
+  ('Sede Norte', 'Futbolito', 'Cancha 1', CURRENT_DATE - 1, '17:00', 60, 'completada', 'bot', 'Valentina Mock', '+56900000008', '88.888.888-8', 'valentina@mock.cl', NULL, NOW() - INTERVAL '1 day'),
+  ('Sede Norte', 'Futbolito', 'Cancha 2', CURRENT_DATE - 1, '18:00', 60, 'completada', 'easycancha', 'Juan Demo', '+56900000001', '11.111.111-1', 'juan@demo.cl', NULL, NOW() - INTERVAL '1 day'),
+  ('Sede Norte', 'Futbolito', 'Cancha 3', CURRENT_DATE - 1, '18:00', 60, 'completada', 'bot', 'Maria Ejemplo', '+56900000002', '22.222.222-2', 'maria@ejemplo.cl', NULL, NOW() - INTERVAL '1 day'),
+  ('Sede Norte', 'Futbolito', 'Cancha 4', CURRENT_DATE - 1, '19:00', 60, 'completada', 'bot', 'Pedro Prueba', '+56900000003', '33.333.333-3', 'pedro@prueba.cl', NULL, NOW() - INTERVAL '1 day'),
+  ('Sede Norte', 'Futbolito', 'Cancha 5', CURRENT_DATE - 1, '20:00', 60, 'completada', 'telefono', 'Ana Muestra', '+56900000004', '44.444.444-4', 'ana@muestra.cl', NULL, NOW() - INTERVAL '1 day'),
+  ('Sede Norte', 'Futbolito', 'Cancha 6', CURRENT_DATE - 1, '20:00', 60, 'completada', 'bot', 'Luis Test', '+56900000005', '55.555.555-5', 'luis@test.cl', NULL, NOW() - INTERVAL '1 day'),
+  ('Sede Norte', 'Futbolito', 'Cancha 1', CURRENT_DATE - 1, '21:00', 60, 'completada', 'bot', 'Sofia Sample', '+56900000006', '66.666.666-6', 'sofia@sample.cl', 'Reserva semanal', NOW() - INTERVAL '1 day'),
+  ('Sede Sur', 'Futbolito', 'Cancha 1', CURRENT_DATE - 1, '17:00', 60, 'completada', 'bot', 'Carlos Ficticio', '+56900000007', '77.777.777-7', 'carlos@ficticio.cl', NULL, NOW() - INTERVAL '1 day'),
+  ('Sede Sur', 'Futbolito', 'Cancha 2', CURRENT_DATE - 1, '18:00', 60, 'completada', 'easycancha', 'Valentina Mock', '+56900000008', '88.888.888-8', 'valentina@mock.cl', NULL, NOW() - INTERVAL '1 day'),
+  ('Sede Sur', 'Futbolito', 'Cancha 3', CURRENT_DATE - 1, '19:00', 60, 'completada', 'bot', 'Juan Demo', '+56900000001', '11.111.111-1', 'juan@demo.cl', NULL, NOW() - INTERVAL '1 day'),
+  ('Sede Sur', 'Futbolito', 'Cancha 4', CURRENT_DATE - 1, '20:00', 60, 'cancelada', 'bot', 'Maria Ejemplo', '+56900000002', '22.222.222-2', 'maria@ejemplo.cl', NULL, NOW() - INTERVAL '1 day'),
+  ('Sede Sur', 'Padel', 'Cancha 1', CURRENT_DATE - 1, '18:00', 90, 'completada', 'bot', 'Pedro Prueba', '+56900000003', '33.333.333-3', 'pedro@prueba.cl', NULL, NOW() - INTERVAL '1 day'),
+  ('Sede Sur', 'Padel', 'Cancha 2', CURRENT_DATE - 1, '19:00', 60, 'completada', 'easycancha', 'Ana Muestra', '+56900000004', '44.444.444-4', 'ana@muestra.cl', NULL, NOW() - INTERVAL '1 day'),
+  ('Sede Sur', 'Padel', 'Cancha 3', CURRENT_DATE - 1, '20:00', 60, 'completada', 'bot', 'Luis Test', '+56900000005', '55.555.555-5', 'luis@test.cl', NULL, NOW() - INTERVAL '1 day'),
+
+  -- ============ HOY (alta demanda) ============
+  ('Sede Norte', 'Futbolito', 'Cancha 1', CURRENT_DATE, '17:00', 60, 'confirmada', 'bot', 'Sofia Sample', '+56900000006', '66.666.666-6', 'sofia@sample.cl', NULL, NOW() - INTERVAL '6 hours'),
+  ('Sede Norte', 'Futbolito', 'Cancha 1', CURRENT_DATE, '18:00', 60, 'confirmada', 'bot', 'Carlos Ficticio', '+56900000007', '77.777.777-7', 'carlos@ficticio.cl', NULL, NOW() - INTERVAL '5 hours'),
+  ('Sede Norte', 'Futbolito', 'Cancha 2', CURRENT_DATE, '18:00', 60, 'confirmada', 'easycancha', 'Valentina Mock', '+56900000008', '88.888.888-8', 'valentina@mock.cl', NULL, NOW() - INTERVAL '4 hours'),
+  ('Sede Norte', 'Futbolito', 'Cancha 3', CURRENT_DATE, '19:00', 60, 'confirmada', 'bot', 'Juan Demo', '+56900000001', '11.111.111-1', 'juan@demo.cl', NULL, NOW() - INTERVAL '3 hours'),
+  ('Sede Norte', 'Futbolito', 'Cancha 4', CURRENT_DATE, '19:00', 60, 'confirmada', 'bot', 'Maria Ejemplo', '+56900000002', '22.222.222-2', 'maria@ejemplo.cl', NULL, NOW() - INTERVAL '3 hours'),
+  ('Sede Norte', 'Futbolito', 'Cancha 5', CURRENT_DATE, '20:00', 60, 'confirmada', 'easycancha', 'Pedro Prueba', '+56900000003', '33.333.333-3', 'pedro@prueba.cl', NULL, NOW() - INTERVAL '2 hours'),
+  ('Sede Norte', 'Futbolito', 'Cancha 6', CURRENT_DATE, '20:00', 60, 'pendiente', 'bot', 'Ana Muestra', '+56900000004', '44.444.444-4', 'ana@muestra.cl', NULL, NOW() - INTERVAL '1 hour'),
+  ('Sede Norte', 'Futbolito', 'Cancha 2', CURRENT_DATE, '21:00', 60, 'confirmada', 'bot', 'Luis Test', '+56900000005', '55.555.555-5', 'luis@test.cl', 'Liga nocturna', NOW() - INTERVAL '2 hours'),
+  ('Sede Norte', 'Futbolito', 'Cancha 3', CURRENT_DATE, '21:00', 60, 'pre_reserva', 'bot', 'Sofia Sample', '+56900000006', '66.666.666-6', 'sofia@sample.cl', NULL, NOW() - INTERVAL '30 minutes'),
+  ('Sede Sur', 'Futbolito', 'Cancha 1', CURRENT_DATE, '17:00', 60, 'confirmada', 'bot', 'Carlos Ficticio', '+56900000007', '77.777.777-7', 'carlos@ficticio.cl', NULL, NOW() - INTERVAL '5 hours'),
+  ('Sede Sur', 'Futbolito', 'Cancha 1', CURRENT_DATE, '18:00', 60, 'confirmada', 'easycancha', 'Valentina Mock', '+56900000008', '88.888.888-8', 'valentina@mock.cl', NULL, NOW() - INTERVAL '4 hours'),
+  ('Sede Sur', 'Futbolito', 'Cancha 2', CURRENT_DATE, '19:00', 60, 'confirmada', 'bot', 'Juan Demo', '+56900000001', '11.111.111-1', 'juan@demo.cl', 'Reserva semanal', NOW() - INTERVAL '5 hours'),
+  ('Sede Sur', 'Futbolito', 'Cancha 3', CURRENT_DATE, '19:00', 60, 'confirmada', 'telefono', 'Maria Ejemplo', '+56900000002', '22.222.222-2', 'maria@ejemplo.cl', NULL, NOW() - INTERVAL '3 hours'),
+  ('Sede Sur', 'Futbolito', 'Cancha 4', CURRENT_DATE, '20:00', 60, 'pendiente', 'bot', 'Pedro Prueba', '+56900000003', '33.333.333-3', 'pedro@prueba.cl', NULL, NOW() - INTERVAL '1 hour'),
+  ('Sede Sur', 'Padel', 'Cancha 1', CURRENT_DATE, '18:00', 90, 'confirmada', 'bot', 'Ana Muestra', '+56900000004', '44.444.444-4', 'ana@muestra.cl', NULL, NOW() - INTERVAL '6 hours'),
+  ('Sede Sur', 'Padel', 'Cancha 2', CURRENT_DATE, '19:00', 60, 'confirmada', 'easycancha', 'Luis Test', '+56900000005', '55.555.555-5', 'luis@test.cl', NULL, NOW() - INTERVAL '3 hours'),
+  ('Sede Sur', 'Padel', 'Cancha 3', CURRENT_DATE, '20:00', 60, 'confirmada', 'bot', 'Sofia Sample', '+56900000006', '66.666.666-6', 'sofia@sample.cl', NULL, NOW() - INTERVAL '2 hours'),
+
+  -- ============ MANANA (ya con reservas anticipadas) ============
+  ('Sede Norte', 'Futbolito', 'Cancha 1', CURRENT_DATE + 1, '18:00', 60, 'confirmada', 'bot', 'Carlos Ficticio', '+56900000007', '77.777.777-7', 'carlos@ficticio.cl', NULL, NOW() - INTERVAL '2 hours'),
+  ('Sede Norte', 'Futbolito', 'Cancha 2', CURRENT_DATE + 1, '19:00', 60, 'confirmada', 'easycancha', 'Valentina Mock', '+56900000008', '88.888.888-8', 'valentina@mock.cl', NULL, NOW() - INTERVAL '1 hour'),
+  ('Sede Norte', 'Futbolito', 'Cancha 3', CURRENT_DATE + 1, '19:00', 60, 'pendiente', 'bot', 'Juan Demo', '+56900000001', '11.111.111-1', 'juan@demo.cl', NULL, NOW()),
+  ('Sede Norte', 'Futbolito', 'Cancha 4', CURRENT_DATE + 1, '20:00', 60, 'confirmada', 'bot', 'Maria Ejemplo', '+56900000002', '22.222.222-2', 'maria@ejemplo.cl', NULL, NOW()),
+  ('Sede Norte', 'Futbolito', 'Cancha 5', CURRENT_DATE + 1, '20:00', 60, 'pre_reserva', 'bot', 'Pedro Prueba', '+56900000003', '33.333.333-3', 'pedro@prueba.cl', NULL, NOW()),
+  ('Sede Sur', 'Futbolito', 'Cancha 1', CURRENT_DATE + 1, '18:00', 60, 'confirmada', 'bot', 'Ana Muestra', '+56900000004', '44.444.444-4', 'ana@muestra.cl', NULL, NOW()),
+  ('Sede Sur', 'Futbolito', 'Cancha 2', CURRENT_DATE + 1, '19:00', 60, 'confirmada', 'easycancha', 'Luis Test', '+56900000005', '55.555.555-5', 'luis@test.cl', NULL, NOW()),
+  ('Sede Sur', 'Padel', 'Cancha 1', CURRENT_DATE + 1, '19:00', 60, 'confirmada', 'dashboard', 'Sofia Sample', '+56900000006', '66.666.666-6', 'sofia@sample.cl', 'Clase padel', NOW()),
+  ('Sede Sur', 'Padel', 'Cancha 2', CURRENT_DATE + 1, '20:00', 90, 'pendiente', 'bot', 'Carlos Ficticio', '+56900000007', '77.777.777-7', 'carlos@ficticio.cl', NULL, NOW()),
+
+  -- ============ PASADO MANANA Y DESPUES ============
+  ('Sede Norte', 'Futbolito', 'Cancha 1', CURRENT_DATE + 2, '18:00', 60, 'confirmada', 'bot', 'Valentina Mock', '+56900000008', '88.888.888-8', 'valentina@mock.cl', NULL, NOW()),
+  ('Sede Norte', 'Futbolito', 'Cancha 2', CURRENT_DATE + 2, '19:00', 60, 'pendiente', 'bot', 'Juan Demo', '+56900000001', '11.111.111-1', 'juan@demo.cl', NULL, NOW()),
+  ('Sede Sur', 'Futbolito', 'Cancha 1', CURRENT_DATE + 2, '19:00', 60, 'confirmada', 'easycancha', 'Maria Ejemplo', '+56900000002', '22.222.222-2', 'maria@ejemplo.cl', NULL, NOW()),
+  ('Sede Sur', 'Padel', 'Cancha 1', CURRENT_DATE + 3, '18:00', 90, 'pendiente', 'bot', 'Pedro Prueba', '+56900000003', '33.333.333-3', 'pedro@prueba.cl', NULL, NOW());
 
 -- =============================================
 -- SLOTS (hoy y manana)
 -- =============================================
--- Generamos slots usando generate_series
 
 -- Sede Norte - Futbolito (Cancha 1-6, 09:00-23:00)
 INSERT INTO slots (centro, tipo_cancha, cancha, fecha, hora, duracion, estado)
-SELECT
-  'Sede Norte',
-  'Futbolito',
-  'Cancha ' || c.n,
-  d.fecha,
-  LPAD(h.hora::TEXT, 2, '0') || ':00',
-  60,
-  'disponible'
-FROM
-  generate_series(1, 6) AS c(n),
+SELECT 'Sede Norte', 'Futbolito', 'Cancha ' || c.n, d.fecha,
+  LPAD(h.hora::TEXT, 2, '0') || ':00', 60, 'disponible'
+FROM generate_series(1, 6) AS c(n),
   (SELECT CURRENT_DATE AS fecha UNION ALL SELECT CURRENT_DATE + 1) AS d,
   generate_series(9, 23) AS h(hora);
 
 -- Sede Sur - Futbolito (Cancha 1-4, 08:00-23:00)
 INSERT INTO slots (centro, tipo_cancha, cancha, fecha, hora, duracion, estado)
-SELECT
-  'Sede Sur',
-  'Futbolito',
-  'Cancha ' || c.n,
-  d.fecha,
-  LPAD(h.hora::TEXT, 2, '0') || ':00',
-  60,
-  'disponible'
-FROM
-  generate_series(1, 4) AS c(n),
+SELECT 'Sede Sur', 'Futbolito', 'Cancha ' || c.n, d.fecha,
+  LPAD(h.hora::TEXT, 2, '0') || ':00', 60, 'disponible'
+FROM generate_series(1, 4) AS c(n),
   (SELECT CURRENT_DATE AS fecha UNION ALL SELECT CURRENT_DATE + 1) AS d,
   generate_series(8, 23) AS h(hora);
 
 -- Sede Sur - Padel (Cancha 1-3, 08:30-23:30 cada 30 min)
 INSERT INTO slots (centro, tipo_cancha, cancha, fecha, hora, duracion, estado)
-SELECT
-  'Sede Sur',
-  'Padel',
-  'Cancha ' || c.n,
-  d.fecha,
+SELECT 'Sede Sur', 'Padel', 'Cancha ' || c.n, d.fecha,
   LPAD((8 + (h.slot * 30) / 60)::TEXT, 2, '0') || ':' || LPAD(((h.slot * 30) % 60)::TEXT, 2, '0'),
-  60,
-  'disponible'
-FROM
-  generate_series(1, 3) AS c(n),
+  60, 'disponible'
+FROM generate_series(1, 3) AS c(n),
   (SELECT CURRENT_DATE AS fecha UNION ALL SELECT CURRENT_DATE + 1) AS d,
   generate_series(1, 31) AS h(slot);
 
 -- Mark slots as 'reservado' where reservas exist for today and tomorrow
-UPDATE slots s
-SET
-  estado = 'reservado',
-  reserva_id = r.id,
-  cliente_nombre = r.nombre_cliente,
-  cliente_telefono = r.telefono_cliente,
-  cliente_rut = r.rut_cliente,
-  cliente_email = r.email_cliente,
-  updated_at = NOW()
+UPDATE slots s SET
+  estado = 'reservado', reserva_id = r.id,
+  cliente_nombre = r.nombre_cliente, cliente_telefono = r.telefono_cliente,
+  cliente_rut = r.rut_cliente, cliente_email = r.email_cliente, updated_at = NOW()
 FROM reservas r
-WHERE s.centro = r.centro
-  AND s.tipo_cancha = r.tipo_cancha
-  AND s.cancha = r.cancha
-  AND s.fecha = r.fecha
-  AND s.hora = r.hora
+WHERE s.centro = r.centro AND s.tipo_cancha = r.tipo_cancha AND s.cancha = r.cancha
+  AND s.fecha = r.fecha AND s.hora = r.hora
   AND r.estado IN ('confirmada', 'pendiente', 'pre_reserva')
-  AND r.fecha >= CURRENT_DATE
-  AND r.fecha <= CURRENT_DATE + 1;
+  AND r.fecha >= CURRENT_DATE AND r.fecha <= CURRENT_DATE + 1;
 
 -- Block some slots for maintenance
-UPDATE slots
-SET estado = 'bloqueado', notas = 'Mantencion cancha'
-WHERE centro = 'Sede Norte' AND cancha = 'Cancha 3' AND fecha = CURRENT_DATE AND hora IN ('09:00', '10:00', '11:00');
+UPDATE slots SET estado = 'bloqueado', notas = 'Mantencion cancha'
+WHERE centro = 'Sede Norte' AND cancha = 'Cancha 3' AND fecha = CURRENT_DATE AND hora IN ('09:00', '10:00');
 
-UPDATE slots
-SET estado = 'bloqueado', notas = 'Mantencion cancha'
-WHERE centro = 'Sede Sur' AND tipo_cancha = 'Padel' AND cancha = 'Cancha 3' AND fecha = CURRENT_DATE + 1 AND hora IN ('08:30', '09:00', '09:30');
-
--- =============================================
--- MENSAJES (conversaciones recientes)
--- =============================================
-
--- Conversacion 1: Juan Demo pregunta disponibilidad
-INSERT INTO mensajes_raw (sender_id, canal, mensaje, sender_name, created_at) VALUES
-  ('56900000001', 'whatsapp', 'Hola, tienen cancha disponible para hoy en la tarde?', 'Juan Demo', NOW() - INTERVAL '2 days 4 hours'),
-  ('56900000001', 'whatsapp', 'Futbolito, somos 10', 'Juan Demo', NOW() - INTERVAL '2 days 3 hours 50 minutes'),
-  ('56900000001', 'whatsapp', 'Dale, la de las 19:00 porfa', 'Juan Demo', NOW() - INTERVAL '2 days 3 hours 40 minutes');
-
-INSERT INTO mensajes (sender_id, canal, direccion, contenido, created_at) VALUES
-  ('56900000001', 'whatsapp', 'outbound', 'Hola Juan! Bienvenido a Cancha Llena. Tenemos las siguientes canchas disponibles para hoy: Cancha 1 a las 18:00, Cancha 2 a las 19:00, Cancha 4 a las 20:00. Cual prefieres?', NOW() - INTERVAL '2 days 3 hours 55 minutes'),
-  ('56900000001', 'whatsapp', 'outbound', 'Listo! Tu reserva quedo confirmada: Sede Sur, Cancha 2 a las 19:00. Te esperamos!', NOW() - INTERVAL '2 days 3 hours 38 minutes');
-
--- Conversacion 2: Maria Ejemplo confirma reserva
-INSERT INTO mensajes_raw (sender_id, canal, mensaje, sender_name, created_at) VALUES
-  ('56900000002', 'whatsapp', 'Buenas! Quiero reservar padel para manana', 'Maria Ejemplo', NOW() - INTERVAL '1 day 6 hours'),
-  ('56900000002', 'whatsapp', 'A las 19:00 esta bien', 'Maria Ejemplo', NOW() - INTERVAL '1 day 5 hours 50 minutes');
-
-INSERT INTO mensajes (sender_id, canal, direccion, contenido, created_at) VALUES
-  ('56900000002', 'whatsapp', 'outbound', 'Hola Maria! Para padel en Sede Sur manana tenemos disponible: Cancha 1 a las 18:30, 19:00 y 20:00. Cancha 2 a las 18:00 y 20:00.', NOW() - INTERVAL '1 day 5 hours 55 minutes'),
-  ('56900000002', 'whatsapp', 'outbound', 'Perfecto! Reserva confirmada: Padel Cancha 1, manana a las 19:00. Duracion 60 min. Nos vemos!', NOW() - INTERVAL '1 day 5 hours 48 minutes');
-
--- Conversacion 3: Pedro pregunta precio
-INSERT INTO mensajes_raw (sender_id, canal, mensaje, sender_name, created_at) VALUES
-  ('56900000003', 'whatsapp', 'Cuanto sale la hora de futbolito?', 'Pedro Prueba', NOW() - INTERVAL '1 day 2 hours'),
-  ('56900000003', 'whatsapp', 'Y padel?', 'Pedro Prueba', NOW() - INTERVAL '1 day 1 hour 50 minutes'),
-  ('56900000003', 'whatsapp', 'Ok gracias, voy a reservar padel para el viernes', 'Pedro Prueba', NOW() - INTERVAL '1 day 1 hour 40 minutes');
-
-INSERT INTO mensajes (sender_id, canal, direccion, contenido, created_at) VALUES
-  ('56900000003', 'whatsapp', 'outbound', 'Hola Pedro! La hora de futbolito va desde $25.000 en horario dia y $35.000 en horario prime (18:00-23:00).', NOW() - INTERVAL '1 day 1 hour 55 minutes'),
-  ('56900000003', 'whatsapp', 'outbound', 'El padel tiene un valor de $18.000 la hora y $24.000 la hora y media. Solo disponible en Sede Sur.', NOW() - INTERVAL '1 day 1 hour 48 minutes');
-
--- Conversacion 4: Ana solicita hablar con humano
-INSERT INTO mensajes_raw (sender_id, canal, mensaje, sender_name, created_at) VALUES
-  ('56900000004', 'whatsapp', 'Necesito hablar con alguien por un problema con mi reserva', 'Ana Muestra', NOW() - INTERVAL '5 hours'),
-  ('56900000004', 'whatsapp', 'Es que me cobraron doble', 'Ana Muestra', NOW() - INTERVAL '4 hours 50 minutes');
-
-INSERT INTO mensajes (sender_id, canal, direccion, contenido, created_at) VALUES
-  ('56900000004', 'whatsapp', 'outbound', 'Entiendo Ana, voy a derivar tu caso a un ejecutivo. En breve te contactaran para resolver el tema del cobro. Disculpa las molestias!', NOW() - INTERVAL '4 hours 48 minutes');
-
--- Conversacion 5: Sofia consulta horarios
-INSERT INTO mensajes_raw (sender_id, canal, mensaje, sender_name, created_at) VALUES
-  ('56900000005', 'whatsapp', 'A que hora abren los sabados?', 'Luis Test', NOW() - INTERVAL '3 hours');
-
-INSERT INTO mensajes (sender_id, canal, direccion, contenido, created_at) VALUES
-  ('56900000005', 'whatsapp', 'outbound', 'Hola! Los sabados Sede Norte abre a las 09:00 y Sede Sur desde las 08:00. Cerramos a las 24:00 ambas sedes.', NOW() - INTERVAL '2 hours 55 minutes');
+UPDATE slots SET estado = 'bloqueado', notas = 'Mantencion cancha'
+WHERE centro = 'Sede Sur' AND tipo_cancha = 'Padel' AND cancha = 'Cancha 3'
+  AND fecha = CURRENT_DATE + 1 AND hora IN ('08:30', '09:00');
 
 -- =============================================
--- ALERTAS
+-- CONVERSACIONES REALISTAS (flujo completo de reserva)
+-- =============================================
+
+-- CONV 1: Juan Demo - Flujo completo de reserva futbolito (hace 2 dias)
+INSERT INTO mensajes_raw (sender_id, canal, mensaje, sender_name, created_at) VALUES
+  ('56900000001', 'whatsapp', 'Hola buenas tardes', 'Juan Demo', NOW() - INTERVAL '2 days 5 hours'),
+  ('56900000001', 'whatsapp', 'Quiero reservar una cancha de futbolito', 'Juan Demo', NOW() - INTERVAL '2 days 4 hours 58 minutes'),
+  ('56900000001', 'whatsapp', 'Para hoy en la tarde si es posible', 'Juan Demo', NOW() - INTERVAL '2 days 4 hours 55 minutes'),
+  ('56900000001', 'whatsapp', 'Sede Norte porfa', 'Juan Demo', NOW() - INTERVAL '2 days 4 hours 50 minutes'),
+  ('56900000001', 'whatsapp', 'La de las 18:00 esta bien', 'Juan Demo', NOW() - INTERVAL '2 days 4 hours 45 minutes'),
+  ('56900000001', 'whatsapp', 'Juan Demo', 'Juan Demo', NOW() - INTERVAL '2 days 4 hours 42 minutes'),
+  ('56900000001', 'whatsapp', '11.111.111-1', 'Juan Demo', NOW() - INTERVAL '2 days 4 hours 40 minutes'),
+  ('56900000001', 'whatsapp', 'Perfecto, ahi estaremos. Gracias!', 'Juan Demo', NOW() - INTERVAL '2 days 4 hours 35 minutes');
+
+INSERT INTO mensajes (sender_id, canal, direccion, contenido, created_at) VALUES
+  ('56900000001', 'whatsapp', 'outbound', 'Hola! Bienvenido a Cancha Llena. Soy el asistente virtual y te puedo ayudar a reservar tu cancha. Que tipo de cancha necesitas? (Futbolito / Padel)', NOW() - INTERVAL '2 days 4 hours 59 minutes'),
+  ('56900000001', 'whatsapp', 'outbound', 'Genial! Para que dia necesitas la cancha de futbolito?', NOW() - INTERVAL '2 days 4 hours 57 minutes'),
+  ('56900000001', 'whatsapp', 'outbound', 'Perfecto! En que sede prefieres? Tenemos Sede Norte y Sede Sur.', NOW() - INTERVAL '2 days 4 hours 53 minutes'),
+  ('56900000001', 'whatsapp', 'outbound', 'Excelente! En Sede Norte para hoy tenemos disponible: Cancha 1 a las 18:00, Cancha 2 a las 18:00, Cancha 3 a las 19:00, Cancha 4 a las 19:00. Cual prefieres?', NOW() - INTERVAL '2 days 4 hours 48 minutes'),
+  ('56900000001', 'whatsapp', 'outbound', 'Listo! Para confirmar necesito tu nombre completo.', NOW() - INTERVAL '2 days 4 hours 44 minutes'),
+  ('56900000001', 'whatsapp', 'outbound', 'Gracias Juan! Y tu RUT por favor?', NOW() - INTERVAL '2 days 4 hours 41 minutes'),
+  ('56900000001', 'whatsapp', 'outbound', 'Tu reserva quedo confirmada! Resumen: Futbolito - Sede Norte, Cancha 2 - Hoy a las 18:00 - 60 min - A nombre de Juan Demo (11.111.111-1). Te esperamos!', NOW() - INTERVAL '2 days 4 hours 38 minutes');
+
+-- CONV 2: Maria Ejemplo - Reserva padel con consulta de precios (hace 1 dia)
+INSERT INTO mensajes_raw (sender_id, canal, mensaje, sender_name, created_at) VALUES
+  ('56900000002', 'whatsapp', 'Buenas! Cuanto sale la hora de padel?', 'Maria Ejemplo', NOW() - INTERVAL '1 day 6 hours'),
+  ('56900000002', 'whatsapp', 'Y la hora y media?', 'Maria Ejemplo', NOW() - INTERVAL '1 day 5 hours 55 minutes'),
+  ('56900000002', 'whatsapp', 'Ok quiero reservar para manana una hora', 'Maria Ejemplo', NOW() - INTERVAL '1 day 5 hours 50 minutes'),
+  ('56900000002', 'whatsapp', 'A las 19:00', 'Maria Ejemplo', NOW() - INTERVAL '1 day 5 hours 45 minutes'),
+  ('56900000002', 'whatsapp', 'Maria Ejemplo', 'Maria Ejemplo', NOW() - INTERVAL '1 day 5 hours 42 minutes'),
+  ('56900000002', 'whatsapp', '22.222.222-2', 'Maria Ejemplo', NOW() - INTERVAL '1 day 5 hours 40 minutes'),
+  ('56900000002', 'whatsapp', 'Gracias! Nos vemos manana', 'Maria Ejemplo', NOW() - INTERVAL '1 day 5 hours 36 minutes');
+
+INSERT INTO mensajes (sender_id, canal, direccion, contenido, created_at) VALUES
+  ('56900000002', 'whatsapp', 'outbound', 'Hola Maria! La hora de padel en Sede Sur tiene un valor de $18.000 (60 min) o $24.000 (90 min). Quieres reservar?', NOW() - INTERVAL '1 day 5 hours 58 minutes'),
+  ('56900000002', 'whatsapp', 'outbound', 'La hora y media (90 min) sale $24.000. Es ideal para partidos mas largos!', NOW() - INTERVAL '1 day 5 hours 53 minutes'),
+  ('56900000002', 'whatsapp', 'outbound', 'Para manana tenemos disponible en Padel: Cancha 1 a las 18:00, 19:00 y 20:00. Cancha 2 a las 19:00 y 20:00. Cancha 3 a las 18:30 y 20:00. Que horario prefieres?', NOW() - INTERVAL '1 day 5 hours 48 minutes'),
+  ('56900000002', 'whatsapp', 'outbound', 'Perfecto! Cancha 1 de Padel a las 19:00. Para confirmar necesito tu nombre completo.', NOW() - INTERVAL '1 day 5 hours 43 minutes'),
+  ('56900000002', 'whatsapp', 'outbound', 'Gracias Maria! Tu RUT por favor?', NOW() - INTERVAL '1 day 5 hours 41 minutes'),
+  ('56900000002', 'whatsapp', 'outbound', 'Reserva confirmada! Padel - Sede Sur, Cancha 1 - Manana a las 19:00 - 60 min - A nombre de Maria Ejemplo (22.222.222-2). Nos vemos!', NOW() - INTERVAL '1 day 5 hours 38 minutes');
+
+-- CONV 3: Pedro Prueba - Reserva rapida recurrente (hoy)
+INSERT INTO mensajes_raw (sender_id, canal, mensaje, sender_name, created_at) VALUES
+  ('56900000003', 'whatsapp', 'Hola, la misma de siempre porfa. Futbolito Sede Norte 20:00', 'Pedro Prueba', NOW() - INTERVAL '3 hours'),
+  ('56900000003', 'whatsapp', 'Para hoy', 'Pedro Prueba', NOW() - INTERVAL '2 hours 55 minutes'),
+  ('56900000003', 'whatsapp', 'Dale, Cancha 5 esta bien', 'Pedro Prueba', NOW() - INTERVAL '2 hours 50 minutes');
+
+INSERT INTO mensajes (sender_id, canal, direccion, contenido, created_at) VALUES
+  ('56900000003', 'whatsapp', 'outbound', 'Hola Pedro! Te tengo registrado. Para hoy en Sede Norte a las 20:00 tenemos disponible: Cancha 5 y Cancha 6. Cual prefieres?', NOW() - INTERVAL '2 hours 58 minutes'),
+  ('56900000003', 'whatsapp', 'outbound', 'Listo! Reserva confirmada: Futbolito - Sede Norte, Cancha 5 - Hoy a las 20:00 - A nombre de Pedro Prueba. Como siempre, te esperamos!', NOW() - INTERVAL '2 hours 48 minutes');
+
+-- CONV 4: Ana Muestra - Consulta + reserva padel para hoy (hoy)
+INSERT INTO mensajes_raw (sender_id, canal, mensaje, sender_name, created_at) VALUES
+  ('56900000004', 'whatsapp', 'Hola! Tienen padel disponible para hoy?', 'Ana Muestra', NOW() - INTERVAL '6 hours'),
+  ('56900000004', 'whatsapp', 'A las 18:00 porfa, hora y media', 'Ana Muestra', NOW() - INTERVAL '5 hours 55 minutes'),
+  ('56900000004', 'whatsapp', 'Ana Muestra, rut 44.444.444-4', 'Ana Muestra', NOW() - INTERVAL '5 hours 50 minutes'),
+  ('56900000004', 'whatsapp', 'Genial, gracias!', 'Ana Muestra', NOW() - INTERVAL '5 hours 45 minutes');
+
+INSERT INTO mensajes (sender_id, canal, direccion, contenido, created_at) VALUES
+  ('56900000004', 'whatsapp', 'outbound', 'Hola Ana! Si, para hoy en Padel tenemos: Cancha 1 a las 18:00 y 20:00, Cancha 2 a las 19:00, Cancha 3 a las 20:00. Que horario te acomoda?', NOW() - INTERVAL '5 hours 58 minutes'),
+  ('56900000004', 'whatsapp', 'outbound', 'Cancha 1 a las 18:00 por 90 min ($24.000). Para confirmar necesito nombre y RUT.', NOW() - INTERVAL '5 hours 53 minutes'),
+  ('56900000004', 'whatsapp', 'outbound', 'Reserva confirmada! Padel - Sede Sur, Cancha 1 - Hoy a las 18:00 - 90 min - A nombre de Ana Muestra (44.444.444-4). Que la pasen bien!', NOW() - INTERVAL '5 hours 48 minutes');
+
+-- CONV 5: Carlos Ficticio - Reserva futbolito manana (hoy)
+INSERT INTO mensajes_raw (sender_id, canal, mensaje, sender_name, created_at) VALUES
+  ('56900000007', 'whatsapp', 'Buenas noches, quiero reservar futbolito para manana', 'Carlos Ficticio', NOW() - INTERVAL '2 hours'),
+  ('56900000007', 'whatsapp', 'Sede Norte, tipo 18:00-19:00', 'Carlos Ficticio', NOW() - INTERVAL '1 hour 55 minutes'),
+  ('56900000007', 'whatsapp', 'Cancha 1 porfa', 'Carlos Ficticio', NOW() - INTERVAL '1 hour 50 minutes'),
+  ('56900000007', 'whatsapp', 'Carlos Ficticio, 77.777.777-7', 'Carlos Ficticio', NOW() - INTERVAL '1 hour 47 minutes'),
+  ('56900000007', 'whatsapp', 'Gracias, buena onda el bot jaja', 'Carlos Ficticio', NOW() - INTERVAL '1 hour 43 minutes');
+
+INSERT INTO mensajes (sender_id, canal, direccion, contenido, created_at) VALUES
+  ('56900000007', 'whatsapp', 'outbound', 'Hola Carlos! Con gusto te ayudo. En Sede Norte para manana a las 18:00 tenemos disponible: Cancha 1, Cancha 2, Cancha 4 y Cancha 6. Cual quieres?', NOW() - INTERVAL '1 hour 58 minutes'),
+  ('56900000007', 'whatsapp', 'outbound', 'Excelente eleccion! Para confirmar necesito tu nombre completo y RUT.', NOW() - INTERVAL '1 hour 48 minutes'),
+  ('56900000007', 'whatsapp', 'outbound', 'Reserva confirmada! Futbolito - Sede Norte, Cancha 1 - Manana a las 18:00 - 60 min - A nombre de Carlos Ficticio (77.777.777-7). Nos vemos!', NOW() - INTERVAL '1 hour 45 minutes'),
+  ('56900000007', 'whatsapp', 'outbound', 'Jaja gracias Carlos! Cualquier cosa me escribes. Buenas noches!', NOW() - INTERVAL '1 hour 42 minutes');
+
+-- CONV 6: Luis Test - Consulta horarios de fin de semana (hoy)
+INSERT INTO mensajes_raw (sender_id, canal, mensaje, sender_name, created_at) VALUES
+  ('56900000005', 'whatsapp', 'Hola, tienen disponibilidad para este fin de semana?', 'Luis Test', NOW() - INTERVAL '4 hours'),
+  ('56900000005', 'whatsapp', 'Futbolito en Sede Sur', 'Luis Test', NOW() - INTERVAL '3 hours 55 minutes'),
+  ('56900000005', 'whatsapp', 'Sabado a las 19:00 si hay', 'Luis Test', NOW() - INTERVAL '3 hours 48 minutes'),
+  ('56900000005', 'whatsapp', 'Luis Test, 55.555.555-5', 'Luis Test', NOW() - INTERVAL '3 hours 43 minutes'),
+  ('56900000005', 'whatsapp', 'Excelente, quedamos asi!', 'Luis Test', NOW() - INTERVAL '3 hours 38 minutes');
+
+INSERT INTO mensajes (sender_id, canal, direccion, contenido, created_at) VALUES
+  ('56900000005', 'whatsapp', 'outbound', 'Hola Luis! Que tipo de cancha buscas y en que sede?', NOW() - INTERVAL '3 hours 58 minutes'),
+  ('56900000005', 'whatsapp', 'outbound', 'Para este fin de semana en Sede Sur Futbolito tenemos buena disponibilidad! El sabado: Cancha 1, 2 y 3 a las 17:00, 18:00, 19:00 y 20:00. Domingo: todas disponibles de 09:00 a 23:00. Que dia y hora prefieres?', NOW() - INTERVAL '3 hours 50 minutes'),
+  ('56900000005', 'whatsapp', 'outbound', 'Sabado Cancha 2 a las 19:00. Tu nombre y RUT para confirmar?', NOW() - INTERVAL '3 hours 45 minutes'),
+  ('56900000005', 'whatsapp', 'outbound', 'Confirmado! Futbolito - Sede Sur, Cancha 2 - Sabado a las 19:00 - A nombre de Luis Test (55.555.555-5). Buen partido!', NOW() - INTERVAL '3 hours 40 minutes');
+
+-- =============================================
+-- ALERTAS (mas positivas, menos errores)
 -- =============================================
 
 INSERT INTO alertas (tipo, reserva_id, mensaje, canal, sender_id, leida, resuelta, created_at) VALUES
-  -- Alertas de reserva
-  ('reserva', 28, 'Nueva reserva creada por bot - Ana Muestra, Sede Norte Cancha 1 hoy 18:00', 'whatsapp', '56900000004', false, false, NOW() - INTERVAL '2 hours'),
-  ('reserva', 29, 'Nueva reserva creada via EasyCancha - Luis Test, Sede Norte Cancha 2 hoy 19:00', 'easycancha', '56900000005', false, false, NOW() - INTERVAL '3 hours'),
-  ('reserva', 32, 'Nueva reserva creada por bot - Valentina Mock, Sede Sur Cancha 1 hoy 18:00', 'whatsapp', '56900000008', true, true, NOW() - INTERVAL '4 hours'),
-  ('reserva', 36, 'Nueva reserva creada por bot - Ana Muestra, Sede Norte Cancha 1 manana 18:00', 'whatsapp', '56900000004', false, false, NOW() - INTERVAL '1 hour'),
-  ('reserva', 31, 'Pre-reserva pendiente de confirmacion - Carlos Ficticio, Sede Norte Cancha 5 hoy 21:00', 'whatsapp', '56900000007', false, false, NOW() - INTERVAL '30 minutes'),
+  -- Alertas de reserva (nuevas y exitosas)
+  ('reserva', 87, 'Nueva reserva por bot - Sofia Sample, Sede Norte Cancha 1 hoy 17:00', 'whatsapp', '56900000006', true, true, NOW() - INTERVAL '6 hours'),
+  ('reserva', 88, 'Nueva reserva por bot - Carlos Ficticio, Sede Norte Cancha 1 hoy 18:00', 'whatsapp', '56900000007', true, true, NOW() - INTERVAL '5 hours'),
+  ('reserva', 91, 'Nueva reserva por bot - Juan Demo, Sede Norte Cancha 3 hoy 19:00', 'whatsapp', '56900000001', true, true, NOW() - INTERVAL '3 hours'),
+  ('reserva', 93, 'Nueva reserva por EasyCancha - Pedro Prueba, Sede Norte Cancha 5 hoy 20:00', 'easycancha', '56900000003', false, false, NOW() - INTERVAL '2 hours'),
+  ('reserva', 94, 'Nueva reserva pendiente - Ana Muestra, Sede Norte Cancha 6 hoy 20:00', 'whatsapp', '56900000004', false, false, NOW() - INTERVAL '1 hour'),
+  ('reserva', 95, 'Nueva reserva por bot - Luis Test, Sede Norte Cancha 2 hoy 21:00 (Liga nocturna)', 'whatsapp', '56900000005', false, false, NOW() - INTERVAL '2 hours'),
+  ('reserva', 96, 'Pre-reserva pendiente - Sofia Sample, Sede Norte Cancha 3 hoy 21:00', 'whatsapp', '56900000006', false, false, NOW() - INTERVAL '30 minutes'),
+  ('reserva', 104, 'Nueva reserva por bot - Carlos Ficticio, Sede Norte Cancha 1 manana 18:00', 'whatsapp', '56900000007', false, false, NOW() - INTERVAL '2 hours'),
 
-  -- Alertas EasyCancha sync
-  ('easycancha_sync', NULL, 'Sincronizacion EasyCancha completada - 3 reservas importadas', NULL, NULL, true, true, NOW() - INTERVAL '3 days'),
-  ('easycancha_sync', NULL, 'Sincronizacion EasyCancha completada - 5 reservas importadas', NULL, NULL, false, false, NOW() - INTERVAL '1 day'),
-  ('easycancha_sync', NULL, 'Sincronizacion EasyCancha completada - 2 reservas importadas', NULL, NULL, false, false, NOW() - INTERVAL '6 hours'),
+  -- Alertas EasyCancha sync (todo funcionando bien)
+  ('easycancha_sync', NULL, 'Sincronizacion EasyCancha completada - 8 reservas importadas', NULL, NULL, true, true, NOW() - INTERVAL '3 days'),
+  ('easycancha_sync', NULL, 'Sincronizacion EasyCancha completada - 12 reservas importadas', NULL, NULL, true, true, NOW() - INTERVAL '2 days'),
+  ('easycancha_sync', NULL, 'Sincronizacion EasyCancha completada - 6 reservas importadas', NULL, NULL, true, true, NOW() - INTERVAL '1 day'),
+  ('easycancha_sync', NULL, 'Sincronizacion EasyCancha completada - 9 reservas importadas', NULL, NULL, false, false, NOW() - INTERVAL '4 hours'),
 
-  -- Alertas de escalamiento
-  ('escalamiento', NULL, 'Cliente solicita hablar con humano - Ana Muestra (+56900000004)', 'whatsapp', '56900000004', false, false, NOW() - INTERVAL '5 hours'),
-  ('escalamiento', NULL, 'Cliente reporta problema de cobro - Ana Muestra', 'whatsapp', '56900000004', false, false, NOW() - INTERVAL '4 hours 48 minutes'),
-  ('escalamiento', NULL, 'Cliente insatisfecho con horarios disponibles - Pedro Prueba', 'whatsapp', '56900000003', true, true, NOW() - INTERVAL '2 days'),
-  ('escalamiento', NULL, 'Multiples intentos de reserva fallidos - Sofia Sample', 'whatsapp', '56900000006', true, false, NOW() - INTERVAL '4 days'),
+  -- Escalamiento (solo 1, resuelto)
+  ('escalamiento', NULL, 'Cliente consulta sobre torneos disponibles - Pedro Prueba', 'whatsapp', '56900000003', true, true, NOW() - INTERVAL '2 days'),
 
-  -- Alertas de error
-  ('error', NULL, 'Error al procesar pago via EasyCancha - Timeout de conexion', NULL, NULL, false, false, NOW() - INTERVAL '1 day 3 hours'),
-  ('error', NULL, 'Error al enviar confirmacion WhatsApp - API no disponible temporalmente', NULL, NULL, true, true, NOW() - INTERVAL '3 days 2 hours'),
-
-  -- Alerta pago pendiente
-  ('pago_pendiente', 30, 'Pago pendiente - Sofia Sample, Sede Norte Cancha 4 hoy 20:00 ($35.000)', 'bot', '56900000006', false, false, NOW() - INTERVAL '1 hour');
+  -- Sin errores recientes (negocio estable)
+  ('error', NULL, 'Error temporal API WhatsApp - Reconexion automatica exitosa', NULL, NULL, true, true, NOW() - INTERVAL '5 days');
 
 -- =============================================
 -- SESSIONS
@@ -362,6 +481,9 @@ INSERT INTO alertas (tipo, reserva_id, mensaje, canal, sender_id, leida, resuelt
 INSERT INTO sessions (sender_id, estado, last_activity) VALUES
   ('56900000001', 'activo', NOW() - INTERVAL '2 hours'),
   ('56900000002', 'activo', NOW() - INTERVAL '5 hours'),
-  ('56900000003', 'activo', NOW() - INTERVAL '1 hour'),
-  ('56900000004', 'finalizado', NOW() - INTERVAL '1 day'),
-  ('56900000006', 'finalizado', NOW() - INTERVAL '3 days');
+  ('56900000003', 'activo', NOW() - INTERVAL '3 hours'),
+  ('56900000004', 'activo', NOW() - INTERVAL '6 hours'),
+  ('56900000005', 'activo', NOW() - INTERVAL '4 hours'),
+  ('56900000007', 'activo', NOW() - INTERVAL '2 hours'),
+  ('56900000006', 'finalizado', NOW() - INTERVAL '1 day'),
+  ('56900000008', 'finalizado', NOW() - INTERVAL '2 days');
