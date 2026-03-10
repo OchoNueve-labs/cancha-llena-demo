@@ -148,11 +148,13 @@ export default function ConversacionesPage() {
       conv.message_count++;
     }
 
-    let convList = Array.from(grouped.values()).sort(
-      (a, b) =>
-        new Date(b.last_timestamp).getTime() -
-        new Date(a.last_timestamp).getTime()
-    );
+    let convList = Array.from(grouped.values())
+      .filter((c) => clienteMap.has(c.sender_id))
+      .sort(
+        (a, b) =>
+          new Date(b.last_timestamp).getTime() -
+          new Date(a.last_timestamp).getTime()
+      );
 
     // Apply search filter
     if (search) {
