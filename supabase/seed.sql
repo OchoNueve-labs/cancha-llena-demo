@@ -182,18 +182,19 @@ INSERT INTO clientes (sender_id, nombre, telefono, rut, email, canal) VALUES
 
 -- =============================================
 -- RESERVAS PASADAS (offsets 1-6 = 6 dias dentro del rango 7d)
--- SN Fut 17-21: 4c × 6d × 5h = 120 (ec=48, tel=48, dash=24)
--- SS Fut 17-21: 2c × 6d × 5h = 60  (ec=24, tel=24, dash=12)
--- SN Fut 10-12: 2c × 6d × 3h = 36  (tel=18, pres=18)
+-- Solo canales: easycancha (2/3) y bot (1/3)
+-- SN Fut 17-21: 4c × 6d × 5h = 120 (80 EC + 40 Bot)
+-- SS Fut 17-21: 2c × 6d × 5h = 60  (40 EC + 20 Bot)
+-- SN Fut 10-12: 2c × 6d × 3h = 36  (24 EC + 12 Bot)
 -- Total pasadas: 216
 -- =============================================
 
--- Sede Norte Futbolito 17-21 (120 reservas, canal ~40% EC)
+-- Sede Norte Futbolito 17-21 (120 reservas, 2/3 EC + 1/3 Bot)
 INSERT INTO reservas (centro, tipo_cancha, cancha, fecha, hora, duracion, estado, canal_origen, nombre_cliente, telefono_cliente, rut_cliente, email_cliente, created_at)
 SELECT 'Sede Norte', 'Futbolito', 'Cancha ' || c.n,
   CURRENT_DATE - d.day_offset,
   LPAD(h.hora::TEXT, 2, '0') || ':00', 60, 'completada',
-  (ARRAY['easycancha','easycancha','telefono','telefono','dashboard'])[((c.n + h.hora) % 5) + 1],
+  CASE WHEN (c.n + h.hora + d.day_offset) % 3 = 0 THEN 'bot' ELSE 'easycancha' END,
   (ARRAY['Juan Demo','Maria Ejemplo','Pedro Prueba','Ana Muestra','Luis Test','Sofia Sample','Carlos Ficticio','Valentina Mock'])[((c.n + h.hora + d.day_offset) % 8) + 1],
   (ARRAY['+56900000001','+56900000002','+56900000003','+56900000004','+56900000005','+56900000006','+56900000007','+56900000008'])[((c.n + h.hora + d.day_offset) % 8) + 1],
   (ARRAY['11.111.111-1','22.222.222-2','33.333.333-3','44.444.444-4','55.555.555-5','66.666.666-6','77.777.777-7','88.888.888-8'])[((c.n + h.hora + d.day_offset) % 8) + 1],
@@ -203,12 +204,12 @@ FROM generate_series(1, 4) AS c(n),
   generate_series(1, 6) AS d(day_offset),
   generate_series(17, 21) AS h(hora);
 
--- Sede Sur Futbolito 17-21 (60 reservas, canal ~40% EC)
+-- Sede Sur Futbolito 17-21 (60 reservas, 2/3 EC + 1/3 Bot)
 INSERT INTO reservas (centro, tipo_cancha, cancha, fecha, hora, duracion, estado, canal_origen, nombre_cliente, telefono_cliente, rut_cliente, email_cliente, created_at)
 SELECT 'Sede Sur', 'Futbolito', 'Cancha ' || c.n,
   CURRENT_DATE - d.day_offset,
   LPAD(h.hora::TEXT, 2, '0') || ':00', 60, 'completada',
-  (ARRAY['easycancha','easycancha','telefono','telefono','dashboard'])[((c.n + h.hora) % 5) + 1],
+  CASE WHEN (c.n + h.hora + d.day_offset) % 3 = 0 THEN 'bot' ELSE 'easycancha' END,
   (ARRAY['Juan Demo','Maria Ejemplo','Pedro Prueba','Ana Muestra','Luis Test','Sofia Sample','Carlos Ficticio','Valentina Mock'])[((c.n + h.hora + d.day_offset + 3) % 8) + 1],
   (ARRAY['+56900000001','+56900000002','+56900000003','+56900000004','+56900000005','+56900000006','+56900000007','+56900000008'])[((c.n + h.hora + d.day_offset + 3) % 8) + 1],
   (ARRAY['11.111.111-1','22.222.222-2','33.333.333-3','44.444.444-4','55.555.555-5','66.666.666-6','77.777.777-7','88.888.888-8'])[((c.n + h.hora + d.day_offset + 3) % 8) + 1],
@@ -218,12 +219,12 @@ FROM generate_series(1, 2) AS c(n),
   generate_series(1, 6) AS d(day_offset),
   generate_series(17, 21) AS h(hora);
 
--- Sede Norte Futbolito hora<17 (36 reservas, canal telefono/presencial)
+-- Sede Norte Futbolito hora<17 (36 reservas, 2/3 EC + 1/3 Bot)
 INSERT INTO reservas (centro, tipo_cancha, cancha, fecha, hora, duracion, estado, canal_origen, nombre_cliente, telefono_cliente, rut_cliente, email_cliente, created_at)
 SELECT 'Sede Norte', 'Futbolito', 'Cancha ' || c.n,
   CURRENT_DATE - d.day_offset,
   LPAD(h.hora::TEXT, 2, '0') || ':00', 60, 'completada',
-  (ARRAY['telefono','presencial','telefono','presencial','dashboard'])[((c.n + h.hora) % 5) + 1],
+  CASE WHEN (c.n + h.hora + d.day_offset) % 3 = 0 THEN 'bot' ELSE 'easycancha' END,
   (ARRAY['Juan Demo','Maria Ejemplo','Pedro Prueba','Ana Muestra','Luis Test','Sofia Sample','Carlos Ficticio','Valentina Mock'])[((c.n + h.hora + d.day_offset + 2) % 8) + 1],
   (ARRAY['+56900000001','+56900000002','+56900000003','+56900000004','+56900000005','+56900000006','+56900000007','+56900000008'])[((c.n + h.hora + d.day_offset + 2) % 8) + 1],
   (ARRAY['11.111.111-1','22.222.222-2','33.333.333-3','44.444.444-4','55.555.555-5','66.666.666-6','77.777.777-7','88.888.888-8'])[((c.n + h.hora + d.day_offset + 2) % 8) + 1],
@@ -267,52 +268,53 @@ UPDATE reservas SET estado = 'cancelada' WHERE estado = 'completada'
   AND centro = 'Sede Norte' AND cancha = 'Cancha 2' AND hora = '11:00' AND fecha = CURRENT_DATE - 4;
 
 -- =============================================
--- RESERVAS HOY (66 reservas manuales)
--- SN hora>=17: 28 | SS Fut hora>=17: 14 | SS Padel hora>=17: 19 | SS hora<17: 5
--- Canal today: ec=40, bot=11, tel=9, dash=5, pres=1
+-- RESERVAS HOY (64 reservas manuales)
+-- SN hora>=17: 28 | SS Fut hora>=17: 12 | SS Padel hora>=17: 19 | SS hora<17: 5
+-- Canal today: ec=48, bot=16
+-- Total 7d: 216 pasadas + 64 hoy = 280 (192 EC + 88 Bot)
 -- =============================================
 INSERT INTO reservas (centro, tipo_cancha, cancha, fecha, hora, duracion, estado, canal_origen, nombre_cliente, telefono_cliente, rut_cliente, email_cliente, notas, created_at) VALUES
-  -- ============ HOY - Sede Norte hora>=17 (28 reservas) ============
+  -- ============ HOY - Sede Norte hora>=17 (28 reservas: 19 EC + 9 Bot) ============
   -- 17:00 (5/6)
   ('Sede Norte', 'Futbolito', 'Cancha 1', CURRENT_DATE, '17:00', 60, 'confirmada', 'easycancha', 'Sofia Sample', '+56900000006', '66.666.666-6', 'sofia@sample.cl', NULL, NOW() - INTERVAL '8 hours'),
   ('Sede Norte', 'Futbolito', 'Cancha 2', CURRENT_DATE, '17:00', 60, 'confirmada', 'easycancha', 'Carlos Ficticio', '+56900000007', '77.777.777-7', 'carlos@ficticio.cl', NULL, NOW() - INTERVAL '8 hours'),
   ('Sede Norte', 'Futbolito', 'Cancha 3', CURRENT_DATE, '17:00', 60, 'confirmada', 'easycancha', 'Valentina Mock', '+56900000008', '88.888.888-8', 'valentina@mock.cl', NULL, NOW() - INTERVAL '7 hours'),
-  ('Sede Norte', 'Futbolito', 'Cancha 4', CURRENT_DATE, '17:00', 60, 'confirmada', 'telefono', 'Juan Demo', '+56900000001', '11.111.111-1', 'juan@demo.cl', NULL, NOW() - INTERVAL '7 hours'),
+  ('Sede Norte', 'Futbolito', 'Cancha 4', CURRENT_DATE, '17:00', 60, 'confirmada', 'bot', 'Juan Demo', '+56900000001', '11.111.111-1', 'juan@demo.cl', NULL, NOW() - INTERVAL '7 hours'),
   ('Sede Norte', 'Futbolito', 'Cancha 5', CURRENT_DATE, '17:00', 60, 'confirmada', 'easycancha', 'Maria Ejemplo', '+56900000002', '22.222.222-2', 'maria@ejemplo.cl', NULL, NOW() - INTERVAL '7 hours'),
   -- 18:00 (5/6)
   ('Sede Norte', 'Futbolito', 'Cancha 1', CURRENT_DATE, '18:00', 60, 'confirmada', 'easycancha', 'Carlos Ficticio', '+56900000007', '77.777.777-7', 'carlos@ficticio.cl', NULL, NOW() - INTERVAL '6 hours'),
   ('Sede Norte', 'Futbolito', 'Cancha 2', CURRENT_DATE, '18:00', 60, 'confirmada', 'easycancha', 'Valentina Mock', '+56900000008', '88.888.888-8', 'valentina@mock.cl', NULL, NOW() - INTERVAL '6 hours'),
   ('Sede Norte', 'Futbolito', 'Cancha 3', CURRENT_DATE, '18:00', 60, 'confirmada', 'bot', 'Pedro Prueba', '+56900000003', '33.333.333-3', 'pedro@prueba.cl', NULL, NOW() - INTERVAL '6 hours'),
-  ('Sede Norte', 'Futbolito', 'Cancha 4', CURRENT_DATE, '18:00', 60, 'confirmada', 'dashboard', 'Ana Muestra', '+56900000004', '44.444.444-4', 'ana@muestra.cl', NULL, NOW() - INTERVAL '5 hours'),
-  ('Sede Norte', 'Futbolito', 'Cancha 5', CURRENT_DATE, '18:00', 60, 'confirmada', 'telefono', 'Luis Test', '+56900000005', '55.555.555-5', 'luis@test.cl', NULL, NOW() - INTERVAL '5 hours'),
+  ('Sede Norte', 'Futbolito', 'Cancha 4', CURRENT_DATE, '18:00', 60, 'confirmada', 'easycancha', 'Ana Muestra', '+56900000004', '44.444.444-4', 'ana@muestra.cl', NULL, NOW() - INTERVAL '5 hours'),
+  ('Sede Norte', 'Futbolito', 'Cancha 5', CURRENT_DATE, '18:00', 60, 'confirmada', 'bot', 'Luis Test', '+56900000005', '55.555.555-5', 'luis@test.cl', NULL, NOW() - INTERVAL '5 hours'),
   -- 19:00 (5/6)
   ('Sede Norte', 'Futbolito', 'Cancha 1', CURRENT_DATE, '19:00', 60, 'confirmada', 'easycancha', 'Juan Demo', '+56900000001', '11.111.111-1', 'juan@demo.cl', NULL, NOW() - INTERVAL '4 hours'),
   ('Sede Norte', 'Futbolito', 'Cancha 2', CURRENT_DATE, '19:00', 60, 'confirmada', 'easycancha', 'Valentina Mock', '+56900000008', '88.888.888-8', 'valentina@mock.cl', NULL, NOW() - INTERVAL '4 hours'),
   ('Sede Norte', 'Futbolito', 'Cancha 3', CURRENT_DATE, '19:00', 60, 'confirmada', 'bot', 'Pedro Prueba', '+56900000003', '33.333.333-3', 'pedro@prueba.cl', NULL, NOW() - INTERVAL '4 hours'),
-  ('Sede Norte', 'Futbolito', 'Cancha 4', CURRENT_DATE, '19:00', 60, 'confirmada', 'telefono', 'Maria Ejemplo', '+56900000002', '22.222.222-2', 'maria@ejemplo.cl', NULL, NOW() - INTERVAL '3 hours'),
+  ('Sede Norte', 'Futbolito', 'Cancha 4', CURRENT_DATE, '19:00', 60, 'confirmada', 'easycancha', 'Maria Ejemplo', '+56900000002', '22.222.222-2', 'maria@ejemplo.cl', NULL, NOW() - INTERVAL '3 hours'),
   ('Sede Norte', 'Futbolito', 'Cancha 5', CURRENT_DATE, '19:00', 60, 'confirmada', 'easycancha', 'Ana Muestra', '+56900000004', '44.444.444-4', 'ana@muestra.cl', NULL, NOW() - INTERVAL '3 hours'),
   -- 20:00 (5/6)
   ('Sede Norte', 'Futbolito', 'Cancha 1', CURRENT_DATE, '20:00', 60, 'confirmada', 'easycancha', 'Sofia Sample', '+56900000006', '66.666.666-6', 'sofia@sample.cl', NULL, NOW() - INTERVAL '3 hours'),
   ('Sede Norte', 'Futbolito', 'Cancha 2', CURRENT_DATE, '20:00', 60, 'confirmada', 'easycancha', 'Carlos Ficticio', '+56900000007', '77.777.777-7', 'carlos@ficticio.cl', NULL, NOW() - INTERVAL '2 hours'),
   ('Sede Norte', 'Futbolito', 'Cancha 3', CURRENT_DATE, '20:00', 60, 'confirmada', 'bot', 'Juan Demo', '+56900000001', '11.111.111-1', 'juan@demo.cl', NULL, NOW() - INTERVAL '2 hours'),
-  ('Sede Norte', 'Futbolito', 'Cancha 4', CURRENT_DATE, '20:00', 60, 'confirmada', 'telefono', 'Valentina Mock', '+56900000008', '88.888.888-8', 'valentina@mock.cl', NULL, NOW() - INTERVAL '2 hours'),
-  ('Sede Norte', 'Futbolito', 'Cancha 5', CURRENT_DATE, '20:00', 60, 'pendiente', 'presencial', 'Ana Muestra', '+56900000004', '44.444.444-4', 'ana@muestra.cl', NULL, NOW() - INTERVAL '1 hour'),
+  ('Sede Norte', 'Futbolito', 'Cancha 4', CURRENT_DATE, '20:00', 60, 'confirmada', 'easycancha', 'Valentina Mock', '+56900000008', '88.888.888-8', 'valentina@mock.cl', NULL, NOW() - INTERVAL '2 hours'),
+  ('Sede Norte', 'Futbolito', 'Cancha 5', CURRENT_DATE, '20:00', 60, 'pendiente', 'bot', 'Ana Muestra', '+56900000004', '44.444.444-4', 'ana@muestra.cl', NULL, NOW() - INTERVAL '1 hour'),
   -- 21:00 (5/6)
   ('Sede Norte', 'Futbolito', 'Cancha 1', CURRENT_DATE, '21:00', 60, 'confirmada', 'easycancha', 'Maria Ejemplo', '+56900000002', '22.222.222-2', 'maria@ejemplo.cl', NULL, NOW() - INTERVAL '2 hours'),
   ('Sede Norte', 'Futbolito', 'Cancha 2', CURRENT_DATE, '21:00', 60, 'confirmada', 'easycancha', 'Luis Test', '+56900000005', '55.555.555-5', 'luis@test.cl', 'Liga nocturna', NOW() - INTERVAL '2 hours'),
   ('Sede Norte', 'Futbolito', 'Cancha 3', CURRENT_DATE, '21:00', 60, 'pre_reserva', 'bot', 'Sofia Sample', '+56900000006', '66.666.666-6', 'sofia@sample.cl', NULL, NOW() - INTERVAL '30 minutes'),
-  ('Sede Norte', 'Futbolito', 'Cancha 4', CURRENT_DATE, '21:00', 60, 'confirmada', 'dashboard', 'Carlos Ficticio', '+56900000007', '77.777.777-7', 'carlos@ficticio.cl', NULL, NOW() - INTERVAL '1 hour'),
-  ('Sede Norte', 'Futbolito', 'Cancha 5', CURRENT_DATE, '21:00', 60, 'confirmada', 'telefono', 'Valentina Mock', '+56900000008', '88.888.888-8', 'valentina@mock.cl', NULL, NOW() - INTERVAL '1 hour'),
+  ('Sede Norte', 'Futbolito', 'Cancha 4', CURRENT_DATE, '21:00', 60, 'confirmada', 'easycancha', 'Carlos Ficticio', '+56900000007', '77.777.777-7', 'carlos@ficticio.cl', NULL, NOW() - INTERVAL '1 hour'),
+  ('Sede Norte', 'Futbolito', 'Cancha 5', CURRENT_DATE, '21:00', 60, 'confirmada', 'bot', 'Valentina Mock', '+56900000008', '88.888.888-8', 'valentina@mock.cl', NULL, NOW() - INTERVAL '1 hour'),
   -- 22:00 (3/6)
   ('Sede Norte', 'Futbolito', 'Cancha 1', CURRENT_DATE, '22:00', 60, 'confirmada', 'easycancha', 'Juan Demo', '+56900000001', '11.111.111-1', 'juan@demo.cl', NULL, NOW() - INTERVAL '1 hour'),
   ('Sede Norte', 'Futbolito', 'Cancha 2', CURRENT_DATE, '22:00', 60, 'pendiente', 'bot', 'Pedro Prueba', '+56900000003', '33.333.333-3', 'pedro@prueba.cl', NULL, NOW() - INTERVAL '30 minutes'),
-  ('Sede Norte', 'Futbolito', 'Cancha 3', CURRENT_DATE, '22:00', 60, 'confirmada', 'telefono', 'Ana Muestra', '+56900000004', '44.444.444-4', 'ana@muestra.cl', NULL, NOW() - INTERVAL '30 minutes'),
+  ('Sede Norte', 'Futbolito', 'Cancha 3', CURRENT_DATE, '22:00', 60, 'confirmada', 'easycancha', 'Ana Muestra', '+56900000004', '44.444.444-4', 'ana@muestra.cl', NULL, NOW() - INTERVAL '30 minutes'),
 
-  -- ============ HOY - Sede Sur Futbolito hora>=17 (14 reservas) ============
+  -- ============ HOY - Sede Sur Futbolito hora>=17 (12 reservas: 9 EC + 3 Bot) ============
   -- 17:00 (3/4)
   ('Sede Sur', 'Futbolito', 'Cancha 1', CURRENT_DATE, '17:00', 60, 'confirmada', 'easycancha', 'Carlos Ficticio', '+56900000007', '77.777.777-7', 'carlos@ficticio.cl', NULL, NOW() - INTERVAL '7 hours'),
   ('Sede Sur', 'Futbolito', 'Cancha 2', CURRENT_DATE, '17:00', 60, 'confirmada', 'easycancha', 'Sofia Sample', '+56900000006', '66.666.666-6', 'sofia@sample.cl', NULL, NOW() - INTERVAL '7 hours'),
-  ('Sede Sur', 'Futbolito', 'Cancha 3', CURRENT_DATE, '17:00', 60, 'confirmada', 'easycancha', 'Valentina Mock', '+56900000008', '88.888.888-8', 'valentina@mock.cl', NULL, NOW() - INTERVAL '6 hours'),
+  ('Sede Sur', 'Futbolito', 'Cancha 3', CURRENT_DATE, '17:00', 60, 'confirmada', 'bot', 'Valentina Mock', '+56900000008', '88.888.888-8', 'valentina@mock.cl', NULL, NOW() - INTERVAL '6 hours'),
   -- 18:00 (3/4)
   ('Sede Sur', 'Futbolito', 'Cancha 1', CURRENT_DATE, '18:00', 60, 'confirmada', 'easycancha', 'Valentina Mock', '+56900000008', '88.888.888-8', 'valentina@mock.cl', NULL, NOW() - INTERVAL '6 hours'),
   ('Sede Sur', 'Futbolito', 'Cancha 2', CURRENT_DATE, '18:00', 60, 'confirmada', 'easycancha', 'Juan Demo', '+56900000001', '11.111.111-1', 'juan@demo.cl', NULL, NOW() - INTERVAL '5 hours'),
@@ -320,16 +322,13 @@ INSERT INTO reservas (centro, tipo_cancha, cancha, fecha, hora, duracion, estado
   -- 19:00 (3/4)
   ('Sede Sur', 'Futbolito', 'Cancha 1', CURRENT_DATE, '19:00', 60, 'confirmada', 'easycancha', 'Ana Muestra', '+56900000004', '44.444.444-4', 'ana@muestra.cl', NULL, NOW() - INTERVAL '4 hours'),
   ('Sede Sur', 'Futbolito', 'Cancha 2', CURRENT_DATE, '19:00', 60, 'confirmada', 'easycancha', 'Luis Test', '+56900000005', '55.555.555-5', 'luis@test.cl', 'Reserva semanal', NOW() - INTERVAL '4 hours'),
-  ('Sede Sur', 'Futbolito', 'Cancha 3', CURRENT_DATE, '19:00', 60, 'confirmada', 'telefono', 'Carlos Ficticio', '+56900000007', '77.777.777-7', 'carlos@ficticio.cl', NULL, NOW() - INTERVAL '3 hours'),
+  ('Sede Sur', 'Futbolito', 'Cancha 3', CURRENT_DATE, '19:00', 60, 'confirmada', 'easycancha', 'Carlos Ficticio', '+56900000007', '77.777.777-7', 'carlos@ficticio.cl', NULL, NOW() - INTERVAL '3 hours'),
   -- 20:00 (3/4)
   ('Sede Sur', 'Futbolito', 'Cancha 1', CURRENT_DATE, '20:00', 60, 'confirmada', 'easycancha', 'Pedro Prueba', '+56900000003', '33.333.333-3', 'pedro@prueba.cl', NULL, NOW() - INTERVAL '3 hours'),
   ('Sede Sur', 'Futbolito', 'Cancha 2', CURRENT_DATE, '20:00', 60, 'confirmada', 'easycancha', 'Valentina Mock', '+56900000008', '88.888.888-8', 'valentina@mock.cl', NULL, NOW() - INTERVAL '2 hours'),
   ('Sede Sur', 'Futbolito', 'Cancha 3', CURRENT_DATE, '20:00', 60, 'confirmada', 'bot', 'Juan Demo', '+56900000001', '11.111.111-1', 'juan@demo.cl', NULL, NOW() - INTERVAL '1 hour'),
-  -- 21:00 (2/4)
-  ('Sede Sur', 'Futbolito', 'Cancha 1', CURRENT_DATE, '21:00', 60, 'confirmada', 'easycancha', 'Sofia Sample', '+56900000006', '66.666.666-6', 'sofia@sample.cl', NULL, NOW() - INTERVAL '2 hours'),
-  ('Sede Sur', 'Futbolito', 'Cancha 2', CURRENT_DATE, '21:00', 60, 'confirmada', 'dashboard', 'Carlos Ficticio', '+56900000007', '77.777.777-7', 'carlos@ficticio.cl', NULL, NOW() - INTERVAL '2 hours'),
 
-  -- ============ HOY - Sede Sur Padel hora>=17 (19 reservas, 60min c/u = 38 slots) ============
+  -- ============ HOY - Sede Sur Padel hora>=17 (19 reservas: 16 EC + 3 Bot) ============
   ('Sede Sur', 'Padel', 'Cancha 1', CURRENT_DATE, '17:00', 60, 'confirmada', 'easycancha', 'Pedro Prueba', '+56900000003', '33.333.333-3', 'pedro@prueba.cl', NULL, NOW() - INTERVAL '7 hours'),
   ('Sede Sur', 'Padel', 'Cancha 2', CURRENT_DATE, '17:00', 60, 'confirmada', 'easycancha', 'Ana Muestra', '+56900000004', '44.444.444-4', 'ana@muestra.cl', NULL, NOW() - INTERVAL '7 hours'),
   ('Sede Sur', 'Padel', 'Cancha 3', CURRENT_DATE, '17:00', 60, 'confirmada', 'easycancha', 'Luis Test', '+56900000005', '55.555.555-5', 'luis@test.cl', NULL, NOW() - INTERVAL '6 hours'),
@@ -338,24 +337,24 @@ INSERT INTO reservas (centro, tipo_cancha, cancha, fecha, hora, duracion, estado
   ('Sede Sur', 'Padel', 'Cancha 1', CURRENT_DATE, '18:00', 60, 'confirmada', 'easycancha', 'Ana Muestra', '+56900000004', '44.444.444-4', 'ana@muestra.cl', NULL, NOW() - INTERVAL '6 hours'),
   ('Sede Sur', 'Padel', 'Cancha 2', CURRENT_DATE, '18:00', 60, 'confirmada', 'easycancha', 'Valentina Mock', '+56900000008', '88.888.888-8', 'valentina@mock.cl', NULL, NOW() - INTERVAL '5 hours'),
   ('Sede Sur', 'Padel', 'Cancha 1', CURRENT_DATE, '18:30', 60, 'confirmada', 'easycancha', 'Juan Demo', '+56900000001', '11.111.111-1', 'juan@demo.cl', NULL, NOW() - INTERVAL '5 hours'),
-  ('Sede Sur', 'Padel', 'Cancha 2', CURRENT_DATE, '18:30', 60, 'confirmada', 'telefono', 'Pedro Prueba', '+56900000003', '33.333.333-3', 'pedro@prueba.cl', NULL, NOW() - INTERVAL '5 hours'),
+  ('Sede Sur', 'Padel', 'Cancha 2', CURRENT_DATE, '18:30', 60, 'confirmada', 'easycancha', 'Pedro Prueba', '+56900000003', '33.333.333-3', 'pedro@prueba.cl', NULL, NOW() - INTERVAL '5 hours'),
   ('Sede Sur', 'Padel', 'Cancha 1', CURRENT_DATE, '19:00', 60, 'confirmada', 'easycancha', 'Luis Test', '+56900000005', '55.555.555-5', 'luis@test.cl', NULL, NOW() - INTERVAL '4 hours'),
   ('Sede Sur', 'Padel', 'Cancha 2', CURRENT_DATE, '19:00', 60, 'confirmada', 'bot', 'Carlos Ficticio', '+56900000007', '77.777.777-7', 'carlos@ficticio.cl', NULL, NOW() - INTERVAL '3 hours'),
   ('Sede Sur', 'Padel', 'Cancha 3', CURRENT_DATE, '19:00', 60, 'confirmada', 'easycancha', 'Valentina Mock', '+56900000008', '88.888.888-8', 'valentina@mock.cl', NULL, NOW() - INTERVAL '3 hours'),
-  ('Sede Sur', 'Padel', 'Cancha 1', CURRENT_DATE, '19:30', 60, 'confirmada', 'dashboard', 'Maria Ejemplo', '+56900000002', '22.222.222-2', 'maria@ejemplo.cl', NULL, NOW() - INTERVAL '3 hours'),
+  ('Sede Sur', 'Padel', 'Cancha 1', CURRENT_DATE, '19:30', 60, 'confirmada', 'easycancha', 'Maria Ejemplo', '+56900000002', '22.222.222-2', 'maria@ejemplo.cl', NULL, NOW() - INTERVAL '3 hours'),
   ('Sede Sur', 'Padel', 'Cancha 1', CURRENT_DATE, '20:00', 60, 'confirmada', 'easycancha', 'Sofia Sample', '+56900000006', '66.666.666-6', 'sofia@sample.cl', NULL, NOW() - INTERVAL '2 hours'),
-  ('Sede Sur', 'Padel', 'Cancha 2', CURRENT_DATE, '20:00', 60, 'confirmada', 'telefono', 'Juan Demo', '+56900000001', '11.111.111-1', 'juan@demo.cl', NULL, NOW() - INTERVAL '2 hours'),
+  ('Sede Sur', 'Padel', 'Cancha 2', CURRENT_DATE, '20:00', 60, 'confirmada', 'easycancha', 'Juan Demo', '+56900000001', '11.111.111-1', 'juan@demo.cl', NULL, NOW() - INTERVAL '2 hours'),
   ('Sede Sur', 'Padel', 'Cancha 1', CURRENT_DATE, '20:30', 60, 'confirmada', 'bot', 'Carlos Ficticio', '+56900000007', '77.777.777-7', 'carlos@ficticio.cl', NULL, NOW() - INTERVAL '2 hours'),
   ('Sede Sur', 'Padel', 'Cancha 2', CURRENT_DATE, '20:30', 60, 'confirmada', 'easycancha', 'Luis Test', '+56900000005', '55.555.555-5', 'luis@test.cl', NULL, NOW() - INTERVAL '1 hour'),
   ('Sede Sur', 'Padel', 'Cancha 1', CURRENT_DATE, '21:00', 60, 'confirmada', 'easycancha', 'Valentina Mock', '+56900000008', '88.888.888-8', 'valentina@mock.cl', NULL, NOW() - INTERVAL '1 hour'),
   ('Sede Sur', 'Padel', 'Cancha 2', CURRENT_DATE, '21:00', 60, 'confirmada', 'easycancha', 'Maria Ejemplo', '+56900000002', '22.222.222-2', 'maria@ejemplo.cl', NULL, NOW() - INTERVAL '1 hour'),
 
-  -- ============ HOY - Sede Sur hora<17 (5 reservas) ============
+  -- ============ HOY - Sede Sur hora<17 (5 reservas: 4 EC + 1 Bot) ============
   ('Sede Sur', 'Padel', 'Cancha 1', CURRENT_DATE, '09:00', 60, 'completada', 'easycancha', 'Pedro Prueba', '+56900000003', '33.333.333-3', 'pedro@prueba.cl', NULL, NOW() - INTERVAL '10 hours'),
   ('Sede Sur', 'Padel', 'Cancha 2', CURRENT_DATE, '09:00', 60, 'completada', 'easycancha', 'Ana Muestra', '+56900000004', '44.444.444-4', 'ana@muestra.cl', NULL, NOW() - INTERVAL '10 hours'),
   ('Sede Sur', 'Padel', 'Cancha 1', CURRENT_DATE, '10:00', 60, 'completada', 'bot', 'Luis Test', '+56900000005', '55.555.555-5', 'luis@test.cl', NULL, NOW() - INTERVAL '9 hours'),
-  ('Sede Sur', 'Futbolito', 'Cancha 1', CURRENT_DATE, '10:00', 60, 'completada', 'telefono', 'Sofia Sample', '+56900000006', '66.666.666-6', 'sofia@sample.cl', NULL, NOW() - INTERVAL '9 hours'),
-  ('Sede Sur', 'Futbolito', 'Cancha 2', CURRENT_DATE, '11:00', 60, 'completada', 'dashboard', 'Carlos Ficticio', '+56900000007', '77.777.777-7', 'carlos@ficticio.cl', NULL, NOW() - INTERVAL '8 hours');
+  ('Sede Sur', 'Futbolito', 'Cancha 1', CURRENT_DATE, '10:00', 60, 'completada', 'easycancha', 'Sofia Sample', '+56900000006', '66.666.666-6', 'sofia@sample.cl', NULL, NOW() - INTERVAL '9 hours'),
+  ('Sede Sur', 'Futbolito', 'Cancha 2', CURRENT_DATE, '11:00', 60, 'completada', 'easycancha', 'Carlos Ficticio', '+56900000007', '77.777.777-7', 'carlos@ficticio.cl', NULL, NOW() - INTERVAL '8 hours');
 
 -- =============================================
 -- RESERVAS FUTURO (fuera del rango 7d, no afectan metricas)
@@ -366,7 +365,7 @@ INSERT INTO reservas (centro, tipo_cancha, cancha, fecha, hora, duracion, estado
   ('Sede Norte', 'Futbolito', 'Cancha 3', CURRENT_DATE + 1, '19:00', 60, 'pendiente', 'bot', 'Juan Demo', '+56900000001', '11.111.111-1', 'juan@demo.cl', NULL, NOW()),
   ('Sede Norte', 'Futbolito', 'Cancha 4', CURRENT_DATE + 1, '20:00', 60, 'confirmada', 'easycancha', 'Maria Ejemplo', '+56900000002', '22.222.222-2', 'maria@ejemplo.cl', NULL, NOW()),
   ('Sede Sur', 'Futbolito', 'Cancha 1', CURRENT_DATE + 1, '18:00', 60, 'confirmada', 'easycancha', 'Ana Muestra', '+56900000004', '44.444.444-4', 'ana@muestra.cl', NULL, NOW()),
-  ('Sede Sur', 'Padel', 'Cancha 1', CURRENT_DATE + 1, '19:00', 60, 'confirmada', 'dashboard', 'Sofia Sample', '+56900000006', '66.666.666-6', 'sofia@sample.cl', 'Clase padel', NOW()),
+  ('Sede Sur', 'Padel', 'Cancha 1', CURRENT_DATE + 1, '19:00', 60, 'confirmada', 'bot', 'Sofia Sample', '+56900000006', '66.666.666-6', 'sofia@sample.cl', 'Clase padel', NOW()),
   ('Sede Norte', 'Futbolito', 'Cancha 1', CURRENT_DATE + 2, '18:00', 60, 'confirmada', 'easycancha', 'Valentina Mock', '+56900000008', '88.888.888-8', 'valentina@mock.cl', NULL, NOW()),
   ('Sede Sur', 'Padel', 'Cancha 1', CURRENT_DATE + 3, '18:00', 60, 'pendiente', 'easycancha', 'Pedro Prueba', '+56900000003', '33.333.333-3', 'pedro@prueba.cl', NULL, NOW());
 
@@ -419,8 +418,8 @@ WHERE centro = 'Sede Sur' AND tipo_cancha = 'Padel' AND cancha = 'Cancha 3'
   AND fecha = CURRENT_DATE + 1 AND hora IN ('08:30', '09:00');
 
 -- =============================================
--- MENSAJES BULK (420 para completar con las conversaciones realistas)
--- 7 dias × 60 mensajes/dia = 420
+-- MENSAJES BULK (130 bulk + 34 conversaciones = 164 total)
+-- 6 dias × 19 + 1 dia × 16 = 130
 -- =============================================
 INSERT INTO mensajes (sender_id, canal, direccion, contenido, created_at)
 SELECT
@@ -437,7 +436,8 @@ SELECT
   END,
   NOW() - (d.day_offset || ' days')::INTERVAL + ((m.msg_n * 12) || ' minutes')::INTERVAL
 FROM generate_series(0, 6) AS d(day_offset),
-  generate_series(1, 60) AS m(msg_n);
+  generate_series(1, 19) AS m(msg_n)
+WHERE NOT (d.day_offset = 0 AND m.msg_n > 16);
 
 -- =============================================
 -- CONVERSACIONES REALISTAS (flujo completo del bot con pago)

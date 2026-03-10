@@ -1,13 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="220" height="48" viewBox="0 0 220 48">
-  <!-- Icon: soccer field lines in rounded square -->
+  <!-- Icon -->
   <rect x="2" y="4" width="40" height="40" rx="8" fill="#26a69a" opacity="0.15"/>
-  <rect x="10" y="12" width="24" height="24" rx="2" fill="none" stroke="#26a69a" stroke-width="1.5" opacity="0.5"/>
-  <line x1="22" y1="12" x2="22" y2="36" stroke="#26a69a" stroke-width="1.5" opacity="0.5"/>
-  <circle cx="22" cy="24" r="5" fill="none" stroke="#26a69a" stroke-width="1.5" opacity="0.5"/>
   <text x="22" y="30" font-family="system-ui, -apple-system, sans-serif" font-size="20" font-weight="700" fill="#26a69a" text-anchor="middle">CL</text>
   <!-- Text -->
-  <text x="52" y="24" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="700" fill="currentColor" class="logo-text">Cancha</text>
+  <text x="52" y="24" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="700" fill="#e2e8f0">Cancha</text>
   <text x="52" y="40" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="700" fill="#26a69a">Llena</text>
-  <!-- TM mark -->
   <text x="106" y="42" font-family="system-ui, -apple-system, sans-serif" font-size="8" font-weight="400" fill="#26a69a" opacity="0.7">™</text>
 </svg>
