@@ -27,6 +27,7 @@ export interface NuevaReservaInitial {
   email_cliente?: string;
   notas?: string;
   duracion?: number;
+  monto_pago?: number | null;
 }
 
 interface NuevaReservaDialogProps {
@@ -95,6 +96,7 @@ export function NuevaReservaDialog({
   const [rutCliente, setRutCliente] = useState("");
   const [emailCliente, setEmailCliente] = useState("");
   const [notas, setNotas] = useState("");
+  const [montoPago, setMontoPago] = useState("");
 
   // UI state
   const [loading, setLoading] = useState(false);
@@ -115,6 +117,9 @@ export function NuevaReservaDialog({
       setRutCliente(initialData?.rut_cliente || "");
       setEmailCliente(initialData?.email_cliente || "");
       setNotas(initialData?.notas || "");
+      setMontoPago(
+        initialData?.monto_pago != null ? String(initialData.monto_pago) : ""
+      );
     }
   }, [open, initialData]);
 
@@ -345,6 +350,7 @@ export function NuevaReservaDialog({
             rut_cliente: rutCliente.trim(),
             email_cliente: emailCliente.trim(),
             notas: notas.trim() || null,
+            monto_pago: montoPago.trim() ? Number(montoPago) : null,
           })
           .eq("id", editReservaId);
 
@@ -713,6 +719,22 @@ export function NuevaReservaDialog({
               className={`${inputClass} resize-none`}
             />
           </div>
+
+          {/* Monto Pago (solo en modo edicion) */}
+          {isEditing && (
+            <div>
+              <label className={labelClass}>Monto Pago ($)</label>
+              <input
+                type="number"
+                value={montoPago}
+                onChange={(e) => setMontoPago(e.target.value)}
+                placeholder="Ej: 15000"
+                min={0}
+                step={1000}
+                className={inputClass}
+              />
+            </div>
+          )}
 
           {/* Footer */}
           <DialogFooter>

@@ -71,6 +71,10 @@ export default function ReservasPage() {
   const [editingNotasId, setEditingNotasId] = useState<number | null>(null);
   const [editingNotasValue, setEditingNotasValue] = useState("");
 
+  // Inline monto_pago editing
+  const [editingMontoId, setEditingMontoId] = useState<number | null>(null);
+  const [editingMontoValue, setEditingMontoValue] = useState("");
+
   // Data
   const [reservas, setReservas] = useState<Reserva[]>([]);
   const [loading, setLoading] = useState(true);
@@ -112,6 +116,13 @@ export default function ReservasPage() {
   }, [fecha, centro, estado, canal]);
 
   const handleConfirmar = async (reserva: Reserva) => {
+    if (!reserva.monto_pago) {
+      const confirmed = window.confirm(
+        "Esta reserva no tiene pago registrado. ¿Confirmar de todos modos?"
+      );
+      if (!confirmed) return;
+    }
+
     // Optimistic update
     setReservas((prev) =>
       prev.map((r) =>
@@ -198,6 +209,35 @@ export default function ReservasPage() {
       setReservas((prev) =>
         prev.map((r) =>
           r.id === reservaId ? { ...r, notas: oldNotas ?? null } : r
+        )
+      );
+    }
+  };
+
+  const handleSaveMonto = async (reservaId: number) => {
+    const newMonto = editingMontoValue.trim()
+      ? Number(editingMontoValue)
+      : null;
+
+    // Optimistic update
+    setReservas((prev) =>
+      prev.map((r) =>
+        r.id === reservaId ? { ...r, monto_pago: newMonto } : r
+      )
+    );
+    const oldMonto = reservas.find((r) => r.id === reservaId)?.monto_pago;
+    setEditingMontoId(null);
+
+    const { error } = await supabase
+      .from("reservas")
+      .update({ monto_pago: newMonto })
+      .eq("id", reservaId);
+
+    if (error) {
+      // Revert on error
+      setReservas((prev) =>
+        prev.map((r) =>
+          r.id === reservaId ? { ...r, monto_pago: oldMonto ?? null } : r
         )
       );
     }
@@ -373,15 +413,26 @@ export default function ReservasPage() {
                           {reserva.cancha || "—"}
                         </td>
                         <td className="px-3 py-2.5">
-                          <span
-                            className={cn(
-                              "px-2 py-0.5 rounded-full text-xs font-medium border",
-                              ESTADO_RESERVA_COLORS[reserva.estado] ||
-                                "bg-muted text-muted-foreground border-border"
-                            )}
-                          >
-                            {reserva.estado}
-                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span
+                              className={cn(
+                                "px-2 py-0.5 rounded-full text-xs font-medium border",
+                                ESTADO_RESERVA_COLORS[reserva.estado] ||
+                                  "bg-muted text-muted-foreground border-border"
+                              )}
+                            >
+                              {reserva.estado}
+                            </span>
+                            {reserva.monto_pago && reserva.monto_pago > 0 ? (
+                              <span className="px-2 py-0.5 rounded-full text-xs font-medium border bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
+                                ${reserva.monto_pago.toLocaleString("es-CL")}
+                              </span>
+                            ) : (reserva.estado === "pre_reserva" || reserva.estado === "pendiente") ? (
+                              <span className="px-2 py-0.5 rounded-full text-xs font-medium border bg-red-500/20 text-red-400 border-red-500/30">
+                                Sin pago
+                              </span>
+                            ) : null}
+                          </div>
                         </td>
                         <td className="px-3 py-2.5 text-sm text-muted-foreground capitalize">
                           {reserva.canal_origen || "—"}
@@ -471,6 +522,61 @@ export default function ReservasPage() {
                                   <span className="text-xs text-muted-foreground block">Email</span>
                                   <span className="text-foreground">{reserva.email_cliente}</span>
                                 </div>
+                              )}
+                            </div>
+                            <div className="mt-3 p-3 rounded-lg bg-muted/50 border border-border">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-xs text-muted-foreground">Monto Pago</span>
+                                {editingMontoId !== reserva.id && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingMontoId(reserva.id);
+                                      setEditingMontoValue(
+                                        reserva.monto_pago != null ? String(reserva.monto_pago) : ""
+                                      );
+                                    }}
+                                    className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                                    title="Editar monto"
+                                  >
+                                    <Pencil className="h-5 w-5" />
+                                  </button>
+                                )}
+                              </div>
+                              {editingMontoId === reserva.id ? (
+                                <div onClick={(e) => e.stopPropagation()}>
+                                  <input
+                                    type="number"
+                                    value={editingMontoValue}
+                                    onChange={(e) => setEditingMontoValue(e.target.value)}
+                                    min={0}
+                                    step={1000}
+                                    className="w-full px-2 py-1.5 bg-background border border-border rounded-md text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                                    placeholder="Ej: 15000"
+                                    autoFocus
+                                  />
+                                  <div className="flex items-center gap-1.5 mt-1.5">
+                                    <button
+                                      onClick={() => handleSaveMonto(reserva.id)}
+                                      className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+                                    >
+                                      <Save className="h-3 w-3" />
+                                      Guardar
+                                    </button>
+                                    <button
+                                      onClick={() => setEditingMontoId(null)}
+                                      className="flex items-center gap-1 px-2.5 py-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent text-xs transition-colors"
+                                    >
+                                      Cancelar
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <p className="text-sm text-foreground">
+                                  {reserva.monto_pago != null && reserva.monto_pago > 0
+                                    ? `$${reserva.monto_pago.toLocaleString("es-CL")}`
+                                    : <span className="text-muted-foreground italic">Sin pago registrado</span>}
+                                </p>
                               )}
                             </div>
                             <div className="mt-3 p-3 rounded-lg bg-muted/50 border border-border">

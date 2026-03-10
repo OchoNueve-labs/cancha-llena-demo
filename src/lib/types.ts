@@ -36,6 +36,7 @@ export interface Reserva {
   origen: string;
   duracion: number | null;
   notas: string | null;
+  monto_pago: number | null;
   created_at: string;
 }
 
