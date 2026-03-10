@@ -434,7 +434,7 @@ WHERE centro = 'Sede Sur' AND tipo_cancha = 'Padel' AND cancha = 'Cancha 3'
 -- =============================================
 INSERT INTO mensajes (sender_id, canal, direccion, contenido, created_at)
 SELECT
-  '5690000000' || ((m.msg_n % 8) + 1),
+  '569000000' || ((m.msg_n % 30) + 10),
   'whatsapp',
   CASE WHEN m.msg_n % 3 = 0 THEN 'inbound' ELSE 'outbound' END,
   CASE m.msg_n % 6
